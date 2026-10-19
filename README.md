@@ -68,18 +68,45 @@ Click **Search online…** to enter a manufacturer part number or keyword. The c
 - **SamacSys** opens the [SamacSys / Mouser Component Search portal](https://ms.componentsearchengine.com/) using `search.html?searchString=...`. This is the preferred portal for the current manual download workflow. Sign in on that portal first; if login clears a search, click **Open search in browser** again to repeat it.
 - **LCSC** opens [LCSC search](https://www.lcsc.com/).
 
-Changing the search provider does not change the active import source. Opening this dialog performs no network requests; only the explicit browser button opens the selected search URL. The loader does not scrape results, sign in, download files or use provider APIs. Site availability, login requirements and search results are handled by the website in your browser. Automated tests mock browser launching; a live browser search is a manual check.
+Changing the search provider does not change the active import source. Opening this dialog performs no network requests; only the explicit browser button opens the selected search URL. The loader does not scrape results, sign in, download files or use provider APIs. **Open ZIP…** loads files you have already downloaded. Site availability, login requirements and search results are handled by the website in your browser. Automated tests mock browser launching; a live browser search is a manual check.
 
 Current real-world download and import validation focuses on SamacSys. LCSC remains available, with real-export validation and automatic EasyEDA conversion deferred.
 
 After downloading:
 
-1. Extract any ZIP archive yourself into a dedicated folder. Use native `.kicad_sym`, `.kicad_mod` and STEP exports. EasyEDA or legacy exports still need conversion with the appropriate CAD tool.
-2. Click **Use export folder…** in the search dialog to use that folder for its selected provider, or use the same button in the main window for the active source. This saves the provider's input path and refreshes the asset lists. Other provider folders, output paths and categories are preserved. Cancel leaves the current plan and settings intact.
+1. For a ZIP containing native KiCad assets, use **Open ZIP…** as described below. Alternatively, extract it yourself into a dedicated folder. EasyEDA or legacy exports still need conversion with the appropriate CAD tool.
+2. For already extracted files, click **Use export folder…** in the search dialog to use that folder for its selected provider, or use the same button in the main window for the active source. This saves the provider's input path and refreshes the asset lists. Other provider folders, output paths and categories are preserved. Cancel leaves the current plan and settings intact.
 3. If you downloaded into the already configured input folder, click **Refresh** instead. New symbol entries, footprints and STEP filenames are reported in the log; existing selections are retained where possible. Detection happens on refresh, rather than through a background download watcher. Replacements under existing names are rescanned but are not labelled as newly added files.
 4. Review the independent asset selections, previews and **Validate / review plan** before importing. Selecting a folder reads files; it does not import them or register anything in KiCad.
 
-**Use export folder…** changes the configured input folder for that provider. It does not merge the folder with previous inputs or move/copy downloaded files. You can restore a previous input through **Settings…**. Avoid choosing a general Downloads folder containing unrelated or partially downloaded files; use a dedicated, fully extracted export folder. Unsupported containers and formats are reported using the existing scanner.
+**Use export folder…** changes the configured input folder for that provider. It does not merge the folder with previous inputs or move/copy downloaded files. **Open ZIP…** is the separate action that extracts a downloaded archive into the local cache. You can restore a previous input through **Settings…**. Avoid choosing a general Downloads folder containing unrelated or partially downloaded files; use a dedicated, fully extracted export folder. Unsupported containers and formats are reported using the existing scanner.
+
+## Downloads as an input source
+
+Choose **Downloads** in the main **Source** selector to show a list of ZIP files inside the application, newest first. The initial folder is `~/Downloads`; **Folder…** selects another location and remembers it across sessions. The list reads only ZIP filenames directly in that folder. It does not recurse, scan archive contents in the background or include browser partial-download extensions.
+
+Select a ZIP in the dropdown to load its assets, or use **Load ZIP** for the displayed entry. Merely opening Downloads mode or refreshing the list does not extract files. **Refresh** updates the list after another browser download; existing loaded assets still pass through the normal previews, naming, category and format selection, validation and explicit import. Both KiCad output formats remain available.
+
+Downloads is an intake location rather than an online provider. Browser search still uses the current SamacSys or LCSC provider; no download API or automatic browser download is involved. A loaded ZIP uses the same local cache as **Open ZIP…** and replaces that provider's active input folder. Source paths for the other provider and the output library remain unchanged. Choose **SamacSys** or **LCSC** to return to their configured local input folders, or **Use export folder…** to restore a particular folder.
+
+The last successfully loaded archive is retained across restarts so that an unrelated newer ZIP is not displayed as if it supplied the currently loaded component. A failed ZIP load leaves the preceding assets and reviewed plan intact and restores the corresponding selection. If an archive has been moved or removed, its extracted cache may still be used; refresh and choose an available ZIP to load a different component.
+
+Asset dropdowns display symbol names and footprint/STEP filenames rather than complete relative paths. Duplicate names include a source path to distinguish them. Internally the full asset identities are preserved, including manual choices and intentionally empty footprint/model selections.
+
+## Opening downloaded ZIP files
+
+**Open ZIP…** is available in the main window and in **Search online…**. Select a downloaded archive, such as a SamacSys multi-CAD package. The loader extracts native `.kicad_sym`, `.kicad_mod`, `.stp` and `.step` assets while preserving their relative folder paths, plus `license.txt`, `licence.txt` and `part_info.txt` when present. Other CAD formats, PDFs, scripts and installers are not extracted or executed. The original ZIP is left unchanged.
+
+The assets are stored in a unique folder under `<settings-workspace>/.kicad-importer-cache/`. This local vendor cache is excluded from this application's Git source tree and persists across restarts. Opening a ZIP sets that folder as the input for the active source (or the provider selected in the search dialog), saves preferences and refreshes the asset lists. Other source paths, output settings and categories are preserved. Previous cache folders are retained; loading another ZIP does not overwrite them or merge the downloads. To return to a SamacSys Library Loader folder, use **Use export folder…** or **Settings…**.
+
+Opening a ZIP does not write to the output libraries. Review the associations and previews, select a category and choose the symbol format before **Validate / review plan → Import**:
+
+- **KiCad 10+ — Unpacked** writes a genuine `.kicad_symdir` with one `.kicad_sym` file per symbol.
+- **KiCad 9 — Packed** writes a grouped `.kicad_sym` library.
+
+The current format choice is preserved when opening an archive. Existing collision and source-protection checks apply to subsequent imports. No SamacSys Library Loader installation is required when the archive already contains these native assets. Archives containing only legacy or other CAD formats are reported as requiring conversion; Open ZIP does not provide that conversion.
+
+Extraction rejects unsafe or duplicate paths, archive links, encrypted selected assets, damaged ZIPs and archives with more than 5,000 entries. Selected assets are limited to 100 MB per file and 250 MB total. Failed extractions are removed. Cancel leaves the active settings and plan unchanged. Cache folders are retained after successful loading so saved input paths remain usable; they can be removed manually once no longer used as an input. Never publish the cache or third-party assets without the appropriate rights.
 
 ## Categories and automatic library folders
 
@@ -143,7 +170,7 @@ This is the initial default layout. Each provider's actual input folder and the 
 
 ## Import workflow
 
-1. Configure folders using **Settings…** if needed, then select **SamacSys** or **LCSC**. **Refresh** rescans that source without restarting, preserving valid selections within the same source folder, including intentionally empty selections.
+1. Choose **Downloads** to load a ZIP from the download list, or configure folders using **Settings…** and select **SamacSys** or **LCSC**. **Refresh** rescans that source without restarting, preserving valid selections within the same source folder, including intentionally empty selections.
 2. Select a symbol. The importer first matches its Footprint property against available filenames, then tries an exact component name/MPN match. STEP association first uses the footprint's model references, then the component name/MPN. Ambiguous matches remain empty.
 3. Select or change the footprint and STEP independently. Switching the symbol or footprint recalculates associations, so review the selections afterwards. Empty means skip that asset. Symbol-only imports are supported; a STEP model requires a footprint.
 4. Select a configured destination category. The initial choices are **ICs**, **Connectors**, **Power** and **Misc**; use **Categories…** to define others.
@@ -249,7 +276,7 @@ A user manual smoke check has confirmed that the import workflow generally works
 - The available SamacSys files for AD7190BRUZ and NE555DR have been tested. NE555DR's footprint filename differs from its internal name; the component-name fallback handles this case.
 - LCSC was empty during development. Native KiCad exports use the same importer; compatibility with unavailable EasyEDA formats is not claimed.
 - Legacy `.lib`/`.dcm` files are not automatically converted. When a matching `.kicad_sym` is available, it is used. Otherwise, convert the library with KiCad first.
-- EasyEDA JSON, `.epro`, `.elib` and ZIP containers are detected as unsupported. Export or extract native KiCad files first.
+- EasyEDA JSON, `.epro` and `.elib` are unsupported. ZIP downloads containing native KiCad assets can be loaded with **Open ZIP…**. Folder scanning does not automatically expand ZIPs; it reports them for explicit loading or extraction.
 - Symbols using `extends` are blocked to avoid broken dependencies. Export a standalone symbol with KiCad first. Libraries with different format versions must be normalised with KiCad before merging.
 
 ## Validation and write safety
@@ -264,7 +291,7 @@ Plans are tied to their selected output root, and writing rechecks the destinati
 
 ## Git and third-party licensing
 
-The application ignores local preferences, environments, locks and temporary files. Entire `Imports/`, `Symbols/`, `Footprints/` and `3DModels/` trees at the application root are ignored, including custom category names. Tests use synthetic fixtures; no SamacSys or LCSC models are distributed.
+The application ignores local preferences, environments, locks, temporary files and the vendor ZIP cache `.kicad-importer-cache/`. Entire `Imports/`, `Symbols/`, `Footprints/` and `3DModels/` trees at the application root are ignored, including custom category names. Tests use synthetic fixtures; no SamacSys or LCSC models are distributed.
 
 Libraries saved outside this application folder belong to their own workspace. The loader does not change their Git configuration or ignore rules. Review vendor assets and their licences before staging or publishing; version control remains user-managed.
 
@@ -275,7 +302,7 @@ Ignore rules do not untrack previously committed files. Review `git ls-files` an
 Independent input/output paths, configurable categories/library names and explicit folder preparation are implemented. The next steps are:
 
 1. Complete independent-installation smoke checks and native KiCad 10 directory verification. The standalone folder extraction is implemented; repository creation remains user-managed.
-2. Browser search and explicit downloaded-export folder selection are implemented. Next, check the complete browser/download workflow manually with real exports, including LCSC.
+2. Browser search and explicit downloaded-export folder selection are implemented. Next, check the complete browser/download workflow manually with real exports, using SamacSys; real LCSC validation remains deferred.
 3. Standalone publication, followed by KiCad plugin packaging.
 4. Provider-specific API search and downloads, subject to available access.
 
@@ -308,3 +335,7 @@ The local verifier defaults to testing **both** layouts, reuses common footprint
 Workspace-extraction tests cover relative and legacy path migration, custom categories and preferences, source preservation, refusal to replace settings, invalid/missing preferences, and launching the CLI from an unrelated directory.
 
 Browser-search tests cover URL encoding, explicit browser launching, invalid/empty queries and browser errors. Download-handoff tests cover provider-specific path persistence, cancellation, overlap rejection, save failures, unchanged inputs, subsequent validated import, refresh discovery and unsupported ZIP-only folders. They use mocked browser/file-picker calls and synthetic exports.
+
+ZIP regression tests use synthetic multi-CAD archives and cover selective extraction, retained licence metadata, traversal/absolute/device paths, symlinks, duplicate paths, size/count limits, damaged or legacy-only archives, cleanup, Cancel/Save failure behaviour, provider handoff and validated imports in both KiCad output formats. A real NUP2105LT1G SamacSys ZIP was also tested using temporary extraction and output: both layouts, STEP preview and KiCad 9 SVG exports passed. Native directory loading still requires a separate KiCad 10 check.
+
+Downloads and display-label regressions cover shallow ZIP listing, date ordering, partial files, refresh, folder preference persistence, save failures, missing archives, failed-load recovery, restart selection, exact duplicate asset selection and imports in both output formats.

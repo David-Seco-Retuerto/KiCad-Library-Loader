@@ -11,6 +11,9 @@ The loader has been extracted from the library repository into an independent ap
 - Symbol/footprint previews and an integrated STEP viewer.
 - Persistent local preferences and a non-overwriting settings migration utility.
 - Browser search for SamacSys / Component Search Engine and LCSC, explicit export-folder selection and new-asset notices on refresh.
+- Open ZIP for native KiCad downloads, selective extraction into an ignored persistent cache, and review/import through either output format.
+- Downloads source with an in-app ZIP list, configurable remembered folder and refresh.
+- Concise asset labels, with disambiguation for duplicate names and unchanged internal file identities.
 
 ## Code map
 
@@ -19,6 +22,8 @@ The loader has been extracted from the library repository into an independent ap
 - `scripts/library_layout.py`, `loader_settings.py`: categories, paths and validation.
 - `scripts/providers.py`: local provider contract and encoded browser search URLs.
 - `scripts/search_dialog.py`: browser search and download-folder handoff.
+- `scripts/input_choices.py`: asset display labels and shallow date-ordered download listing.
+- `scripts/archive_import.py`: bounded native ZIP extraction and managed cache cleanup on failure.
 - `scripts/step_preview.py`: OpenCascade tessellation and preview support.
 - `scripts/verify_local.py`: optional real-export verification with temporary outputs.
 - `tests/`: synthetic core and GUI regression tests.
@@ -27,7 +32,7 @@ The loader has been extracted from the library repository into an independent ap
 
 1. Manual launch and import check from the independent installation; validate native symdir directory loading with KiCad 10+.
 2. Use SamacSys for current real-world validations. Real LCSC export validation and EasyEDA download/conversion integration are deferred; the source folder was empty during development.
-3. Manually check the implemented browser-search/download-folder workflow. Automatic downloads, ZIP extraction and background folder watching remain future work.
+3. Manually check the implemented browser-search/download-folder workflow. ZIP extraction is implemented. Automatic downloads and background folder watching remain future work.
 4. Prepare a public release: choose an application licence, versioning and packaging, then evaluate KiCad plugin integration.
 5. Investigate provider-specific APIs subject to available access and terms.
 
@@ -49,3 +54,9 @@ KiCad 9 can validate packed symbols and individual unpacked symbol files, but ca
 ## Preferred SamacSys browser portal
 
 Manual searches now use `https://ms.componentsearchengine.com/search.html?searchString=...`, matching the portal preferred by the user. Its public form and a public NE555DR results URL were checked. Queries use percent-encoded spaces because the portal decodes parameters with `decodeURIComponent`. Authenticated login/download behaviour remains a manual check; no user session was accessed. The application retains the query in the search dialog so it can be reopened after website login if necessary.
+
+## Native ZIP intake verification
+
+A real NUP2105LT1G SamacSys multi-CAD ZIP was opened using the new extractor in a temporary settings workspace. Only its native symbol, footprint, STEP and licence/part metadata were extracted. The normal import pipeline generated packed and unpacked outputs, rendered the STEP and exported symbol/footprint SVGs with KiCad 9.0.7. The original ZIP was unchanged and production libraries were not modified. KiCad 10 native directory loading remains pending.
+
+Fourteen synthetic archive/GUI regression tests additionally cover extraction boundaries and failure handling, persisted input selection and preserving the chosen KiCad output format. Downloads and browsing remain manual; Open ZIP handles an already downloaded native archive without requiring SamacSys Library Loader.

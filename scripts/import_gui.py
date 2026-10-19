@@ -19,6 +19,8 @@ from step_preview import StepWindow
 from loader_settings import LoaderSettings
 from providers import PROVIDERS, get_provider
 from search_dialog import SearchDialog
+from archive_import import extract_native_zip, discard_extraction
+from input_choices import asset_choices, downloaded_zips
 from settings_dialog import FolderSettingsDialog
 from categories_dialog import CategoriesDialog, FolderPreviewDialog
 
@@ -183,6 +185,13 @@ class App:
         self.busy = False
         saved_source = self.prefs.get("source")
         self.source = tk.StringVar(value=saved_source if isinstance(saved_source, str) and saved_source in PROVIDERS else next(iter(PROVIDERS)))
+        self.source_choice = tk.StringVar(value="Downloads" if self.prefs.get("input_mode") == "downloads" else self.source.get())
+        saved_downloads = self.prefs.get("downloads_folder")
+        self.downloads_folder = Path(saved_downloads).expanduser().resolve() if isinstance(saved_downloads, str) and saved_downloads.strip() else Path.home() / "Downloads"
+        saved_zip = self.prefs.get("active_zip")
+        self.active_zip = saved_zip if isinstance(saved_zip, str) else ""
+        self.download_zip = tk.StringVar()
+        self.download_files = {}
         saved_category = self.prefs.get("category")
         self.category = tk.StringVar(value=saved_category if self.settings.get_category(saved_category) else self.settings.categories[0].name)
         saved_format = self.prefs.get("symbol_format", "unpacked")
@@ -209,9 +218,9 @@ class App:
         top = ttk.Frame(options)
         top.pack(fill="x")
         ttk.Label(top, text="Source").pack(side="left")
-        source = ttk.Combobox(top, textvariable=self.source, values=list(PROVIDERS), state="readonly", width=15)
+        source = ttk.Combobox(top, textvariable=self.source_choice, values=["Downloads", *PROVIDERS], state="readonly", width=15)
         source.pack(side="left", padx=10)
-        source.bind("<<ComboboxSelected>>", lambda _: self.refresh())
+        source.bind("<<ComboboxSelected>>", lambda _: self.select_source_choice())
         ttk.Button(top, text="Refresh", command=self.refresh).pack(side="left")
         ttk.Button(top, text="Settings…", command=self.open_settings).pack(side="right")
         ttk.Button(top, text="Categories…", command=self.open_categories).pack(side="right", padx=8)
@@ -228,18 +237,31 @@ class App:
         ttk.Button(format_row, text="Prepare library folders…", command=self.prepare_library_folders).pack(side="right")
         download_row = ttk.Frame(options)
         download_row.pack(fill="x", pady=(4, 6))
+        ttk.Button(download_row, text="Open ZIP…", command=self.open_zip).pack(side="left", padx=(0, 10))
         ttk.Button(download_row, text="Search online…", command=self.open_search).pack(side="left")
         ttk.Button(download_row, text="Use export folder…", command=self.use_export_folder).pack(side="left", padx=10)
-        ttk.Label(download_row, text="Download and extract native KiCad files, then Refresh.").pack(side="left")
+        ttk.Label(download_row, text="Open a download ZIP or refresh an export folder.").pack(side="left")
+        self.download_frame = ttk.Frame(options)
+        ttk.Label(self.download_frame, text="Downloaded ZIP").pack(side="left")
+        self.download_combo = ttk.Combobox(self.download_frame, textvariable=self.download_zip, state="readonly")
+        self.download_combo.pack(side="left", fill="x", expand=True, padx=10)
+        self.download_combo.bind("<<ComboboxSelected>>", lambda _: self.load_download())
+        ttk.Button(self.download_frame, text="Load ZIP", command=self.load_download).pack(side="left")
+        ttk.Button(self.download_frame, text="Folder…", command=self.choose_downloads_folder).pack(side="left", padx=(10, 0))
+        self.asset_displays = {}
+        self.asset_choices = {}
         self.combos = {}
         for row, label, var in [(3, "Symbol", self.symbol), (4, "Footprint", self.fp), (5, "STEP model", self.model)]:
             ttk.Label(main, text=label).grid(row=row, column=0, sticky="w", pady=6)
-            combo = ttk.Combobox(main, textvariable=var, state="readonly")
+            display = tk.StringVar()
+            self.asset_displays[label] = display
+            self.asset_choices[label] = {}
+            var.trace_add("write", lambda *_, label=label, var=var: self.sync_asset_display(label, var))
+            combo = ttk.Combobox(main, textvariable=display, state="readonly")
             combo.grid(row=row, column=1, columnspan=2, sticky="ew", padx=(12, 0))
             self.combos[label] = combo
-        self.combos["Symbol"].bind("<<ComboboxSelected>>", lambda _: self.select_symbol())
-        self.combos["Footprint"].bind("<<ComboboxSelected>>", lambda _: self.select_fp())
-        self.combos["STEP model"].bind("<<ComboboxSelected>>", lambda _: self.changed())
+        for label in self.combos:
+            self.combos[label].bind("<<ComboboxSelected>>", lambda _, label=label: self.select_asset(label))
         naming = ttk.Frame(main)
         naming.grid(row=6, column=0, columnspan=3, sticky="ew", pady=10)
         ttk.Label(naming, text="Footprint / 3D name").pack(side="left", padx=(0, 16))
@@ -301,16 +323,144 @@ class App:
             preferences = dict(self.prefs)
             category_name = self.category.get() if settings.get_category(self.category.get()) else settings.categories[0].name
             preferences.update({"source": self.source.get(), "category": category_name, "mode": self.mode.get(), "custom": self.custom.get(), "symbol_format": self.selected_format(), "paths": settings.to_preferences(),
-                                "categories": [category.to_preferences() for category in settings.categories]})
+                                "categories": [category.to_preferences() for category in settings.categories],
+                                "input_mode": "downloads" if self.source_choice.get() == "Downloads" else "provider",
+                                "downloads_folder": str(self.downloads_folder), "active_zip": self.active_zip})
             save_preferences(self.prefs_path, preferences)
             self.prefs = preferences
         except OSError as exc:
             self.log_text(f"Could not save preferences: {exc}")
             raise
 
+    def sync_asset_display(self, label, variable):
+        key = variable.get()
+        display = next((name for name, value in self.asset_choices[label].items() if value == key), "")
+        self.asset_displays[label].set(display)
+
+    def select_asset(self, label):
+        variable = {"Symbol": self.symbol, "Footprint": self.fp, "STEP model": self.model}[label]
+        variable.set(self.asset_choices[label].get(self.asset_displays[label].get(), ""))
+        if label == "Symbol":
+            self.select_symbol()
+        elif label == "Footprint":
+            self.select_fp()
+        else:
+            self.changed()
+
+    def update_downloads_panel(self):
+        if self.source_choice.get() == "Downloads":
+            self.download_frame.pack(fill="x", pady=(4, 6))
+        else:
+            self.download_frame.pack_forget()
+
+    def select_source_choice(self):
+        if self.source_choice.get() in PROVIDERS:
+            self.source.set(self.source_choice.get())
+        self.refresh()
+
+    def refresh_downloads(self):
+        previous = self.download_zip.get()
+        try:
+            self.download_files = {path.name: path for path in downloaded_zips(self.downloads_folder)}
+            self.download_combo["values"] = list(self.download_files)
+            if previous in self.download_files:
+                selected = previous
+            elif self.active_zip:
+                selected = next((name for name, path in self.download_files.items() if path == Path(self.active_zip)), "")
+            else:
+                selected = next(iter(self.download_files), "")
+            self.download_zip.set(selected)
+            return None
+        except (OSError, ValueError) as exc:
+            self.download_files = {}
+            self.download_combo["values"] = []
+            self.download_zip.set("")
+            return str(exc)
+
+    def choose_downloads_folder(self):
+        if self.settings_error:
+            messagebox.showerror("Cannot change Downloads folder", "Correct the saved settings first.", parent=self.root)
+            return
+        selected = filedialog.askdirectory(parent=self.root, title="Select ZIP downloads folder", mustexist=True,
+                                            initialdir=str(self.downloads_folder if self.downloads_folder.is_dir() else self.repo))
+        if not selected:
+            return
+        previous = self.downloads_folder
+        try:
+            folder = Path(selected).resolve()
+            if not folder.is_dir():
+                raise ValueError("Choose an existing Downloads folder.")
+            self.downloads_folder = folder
+            self.write_preferences(self.settings)
+        except (OSError, ValueError) as exc:
+            self.downloads_folder = previous
+            messagebox.showerror("Cannot change Downloads folder", str(exc), parent=self.root)
+            return
+        notice = self.refresh_downloads()
+        self.changed()
+        self.log_text(notice or f"{len(self.download_files)} ZIP downloads available. Select a ZIP to load it.")
+
+    def load_download(self):
+        path = self.download_files.get(self.download_zip.get())
+        if path is None:
+            messagebox.showinfo("Select a ZIP", "Choose a downloaded ZIP. Refresh rescans the Downloads folder.", parent=self.root)
+            return False
+        if not path.is_file():
+            self.refresh_downloads()
+            messagebox.showerror("Download unavailable", "The selected ZIP was moved or removed. Choose another download.", parent=self.root)
+            return False
+        loaded = self.open_zip(archive_path=path)
+        if not loaded:
+            self.download_zip.set(next((name for name, candidate in self.download_files.items()
+                                        if self.active_zip and candidate == Path(self.active_zip)), ""))
+        return loaded
+
     def open_search(self):
         symbol = self.inv.symbols.get(self.symbol.get()) if self.inv else None
-        return SearchDialog(self.root, self.source.get(), symbol.mpn if symbol else "", self.use_export_folder)
+        return SearchDialog(self.root, self.source.get(), symbol.mpn if symbol else "", self.use_export_folder, self.open_zip)
+
+    def open_zip(self, provider=None, archive_path=None):
+        source = provider if provider is not None else self.source.get()
+        extracted = None
+        try:
+            get_provider(source)
+            if self.settings_error:
+                raise ImportErrorDetail(f"Correct the saved settings before loading a ZIP: {self.settings_error}")
+            selected = archive_path or filedialog.askopenfilename(parent=self.root, title=f"Open native KiCad ZIP download for {source}",
+                                                  initialdir=str(self.downloads_folder if self.downloads_folder.is_dir() else self.repo),
+                                                  filetypes=[("ZIP downloads", "*.zip")])
+            if not selected:
+                return False
+            extracted = extract_native_zip(selected, self.repo)
+            previous_zip, previous_selection = self.active_zip, self.download_zip.get()
+            self.active_zip = str(Path(selected).resolve())
+            if self.source_choice.get() == "Downloads":
+                self.download_zip.set(next((name for name, path in self.download_files.items() if path == Path(self.active_zip)), ""))
+            try:
+                self.activate_export_folder(extracted, source)
+            except (OSError, ValueError):
+                self.active_zip = previous_zip
+                self.download_zip.set(previous_selection)
+                raise
+            return True
+        except (OSError, ValueError) as exc:
+            if extracted is not None:
+                discard_extraction(extracted, self.repo)
+            messagebox.showerror("Cannot open ZIP", str(exc), parent=self.root)
+            return False
+
+    def activate_export_folder(self, folder, source):
+        settings = replace(self.settings, sources={**self.settings.sources, source: folder}).validated(self.repo)
+        previous_source, previous_choice = self.source.get(), self.source_choice.get()
+        self.source.set(source)
+        if previous_choice != "Downloads":
+            self.source_choice.set(source)
+        try:
+            self.apply_settings(settings)
+        except (OSError, ValueError):
+            self.source.set(previous_source)
+            self.source_choice.set(previous_choice)
+            raise
 
     def use_export_folder(self, provider=None):
         source = provider if provider is not None else self.source.get()
@@ -326,14 +476,7 @@ class App:
             selected = Path(selected).resolve()
             if not selected.is_dir():
                 raise ImportErrorDetail("Choose an existing folder containing extracted KiCad files.")
-            settings = replace(self.settings, sources={**self.settings.sources, source: selected}).validated(self.repo)
-            previous_source = self.source.get()
-            self.source.set(source)
-            try:
-                self.apply_settings(settings)
-            except (OSError, ValueError):
-                self.source.set(previous_source)
-                raise
+            self.activate_export_folder(selected, source)
             return True
         except (OSError, ValueError) as exc:
             messagebox.showerror("Cannot use export folder", str(exc), parent=self.root)
@@ -383,6 +526,8 @@ class App:
         self.refresh()
 
     def refresh(self):
+        self.update_downloads_panel()
+        download_notice = self.refresh_downloads() if self.source_choice.get() == "Downloads" else None
         self.plan = None
         self.ack.set(False)
         old = self.symbol.get(), self.fp.get(), self.model.get()
@@ -390,9 +535,22 @@ class App:
         previous_entries = ({name: set(getattr(self.inv, name)) for name in ("symbols", "footprints", "models")}
                             if self.inv else {})
         try:
-            self.inv = scan(self.repo, self.source.get(), input_root=self.settings.sources[self.source.get()])
+            input_root = self.settings.sources[self.source.get()]
+            if self.source_choice.get() == "Downloads" and not input_root.is_relative_to(self.repo / ".kicad-importer-cache"):
+                self.inv = None
+                for label in self.combos:
+                    self.asset_choices[label] = {}
+                    self.combos[label]["values"] = []
+                self.symbol.set("")
+                self.fp.set("")
+                self.model.set("")
+                self.changed()
+                self.log_text(download_notice or ("Select a downloaded ZIP to load its native KiCad assets. No ZIPs are extracted until you select one or click Load ZIP." if self.download_files else "No ZIP downloads found. Use Folder… to choose a downloads folder, then Refresh."))
+                return
+            self.inv = scan(self.repo, self.source.get(), input_root=input_root)
             for label, entries in [("Symbol", self.inv.symbols), ("Footprint", self.inv.footprints), ("STEP model", self.inv.models)]:
-                self.combos[label]["values"] = list(entries) if label == "Symbol" else ["", *entries]
+                self.asset_choices[label] = asset_choices(entries, self.inv.root, symbols=label == "Symbol")
+                self.combos[label]["values"] = list(self.asset_choices[label]) if label == "Symbol" else ["", *self.asset_choices[label]]
             self.symbol.set(old[0] if old[0] in self.inv.symbols else next(iter(self.inv.symbols), ""))
             self.select_symbol()
             if previous_root == self.inv.root and old[0] == self.symbol.get():
@@ -407,14 +565,16 @@ class App:
                         preview = "; ".join(added[:5])
                         suffix = f"; and {len(added) - 5} more" if len(added) > 5 else ""
                         additions.append(f"New {label} found: {preview}{suffix}")
-            self.log_text("\n".join(additions + ([f"Invalid saved settings: {self.settings_error}. Open Settings and save corrected paths; importing is disabled."] if self.settings_error else []) + self.inv.notices + [f"{len(self.inv.symbols)} symbols · {len(self.inv.footprints)} footprints · {len(self.inv.models)} STEP", "Select each file independently. Empty = skip that part.", f"Symbol output: {self.symbol_format.get()}. Only the selected format will be written."]))
+            self.log_text("\n".join(([download_notice] if download_notice else []) + additions + ([f"Invalid saved settings: {self.settings_error}. Open Settings and save corrected paths; importing is disabled."] if self.settings_error else []) + self.inv.notices + [f"{len(self.inv.symbols)} symbols · {len(self.inv.footprints)} footprints · {len(self.inv.models)} STEP", "Select each file independently. Empty = skip that part.", f"Symbol output: {self.symbol_format.get()}. Only the selected format will be written."]))
         except (OSError, ValueError) as exc:
             self.inv = None
             self.symbol.set("")
             self.fp.set("")
             self.model.set("")
-            for combo in self.combos.values():
+            for label, combo in self.combos.items():
                 combo["values"] = []
+                self.asset_choices[label] = {}
+                self.asset_displays[label].set("")
             self.changed()
             self.log_text(str(exc))
 
@@ -445,7 +605,8 @@ class App:
             if symbol and self.selected_format() == "unpacked":
                 target /= f"{symbol.name}.kicad_sym"
             self.output.set(f"Footprint / 3D name: {name}\nSymbol output: {self.symbol_format.get()}\nDestination: {target}")
-            self.folder_summary.set(f"Input ({self.source.get()}): {self.settings.sources[self.source.get()]}\nOutput: {self.settings.output_root}")
+            prefix = f"Downloads: {self.downloads_folder}\n" if self.source_choice.get() == "Downloads" else ""
+            self.folder_summary.set(prefix + f"Input ({self.source.get()}): {self.settings.sources[self.source.get()]}\nOutput: {self.settings.output_root}")
             self.symbol_view.show(symbol.node if symbol else None, True)
             self.fp_view.show(read_tree(fp) if fp else None)
         except (OSError, ValueError, IndexError) as exc:

@@ -7,7 +7,7 @@ from providers import PROVIDERS, get_provider
 
 
 class SearchDialog:
-    def __init__(self, parent, provider, initial_query, use_export_folder):
+    def __init__(self, parent, provider, initial_query, use_export_folder, open_zip):
         self.window = tk.Toplevel(parent)
         self.window.title("Search for component models")
         self.window.transient(parent)
@@ -17,6 +17,7 @@ class SearchDialog:
         self.url = tk.StringVar()
         self.status = tk.StringVar(value="Search opens your default browser.")
         self.use_export_folder = use_export_folder
+        self.open_zip = open_zip
         frame = ttk.Frame(self.window, padding=18)
         frame.pack(fill="both", expand=True)
         frame.columnconfigure(1, weight=1)
@@ -31,9 +32,9 @@ class SearchDialog:
         ttk.Entry(frame, textvariable=self.url, state="readonly").grid(
             row=3, column=0, columnspan=2, sticky="ew", pady=(8, 12))
         ttk.Label(frame, text=("1. Search and download the native KiCad files in your browser.\n"
-                               "2. Extract ZIP downloads into a separate folder.\n"
-                               "3. Use export folder… below, or Refresh in the main window if you used the current input folder.\n"
-                               "4. Select the assets and validate the import as usual."),
+                               "2. Use Open ZIP… below, or Use export folder… for already extracted files.\n"
+                               "3. Review the symbol, footprint and STEP selections in the main window.\n"
+                               "4. Validate the plan and import into your selected KiCad output format."),
                   wraplength=620, justify="left").grid(row=4, column=0, columnspan=2, sticky="w")
         ttk.Label(frame, text="SamacSys opens ms.componentsearchengine.com. Sign in there first; reopen this search if login clears the results. LCSC exports may need conversion to native KiCad files.",
                   wraplength=620).grid(row=5, column=0, columnspan=2, sticky="w", pady=10)
@@ -42,6 +43,7 @@ class SearchDialog:
         buttons = ttk.Frame(frame)
         buttons.grid(row=7, column=0, columnspan=2, sticky="e")
         ttk.Button(buttons, text="Open search in browser", command=self.open_search).pack(side="left", padx=5)
+        ttk.Button(buttons, text="Open ZIP…", command=self.choose_zip).pack(side="left", padx=5)
         ttk.Button(buttons, text="Use export folder…", command=self.choose_folder).pack(side="left", padx=5)
         ttk.Button(buttons, text="Close", command=self.window.destroy).pack(side="left", padx=5)
         self.query.trace_add("write", lambda *_: self.update_url())
@@ -66,9 +68,13 @@ class SearchDialog:
             self.status.set("Search could not be opened. No files were imported.")
             messagebox.showerror("Cannot open search", str(exc), parent=self.window)
             return False
-        self.status.set("Browser opened. Download and extract the native KiCad files, then choose their folder.")
+        self.status.set("Browser opened. Download native KiCad files, then Open ZIP… or choose their extracted folder.")
         return True
 
     def choose_folder(self):
         if self.use_export_folder(self.provider.get()):
+            self.window.destroy()
+
+    def choose_zip(self):
+        if self.open_zip(self.provider.get()):
             self.window.destroy()
