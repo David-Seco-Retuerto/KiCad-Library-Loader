@@ -1,0 +1,22 @@
+# Local environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+# Local settings and importer working files
+.kicad-importer.json
+.kicad-importer.json.tmp
+.kicad-importer.lock
+*.import-tmp
+# Vendor inputs and generated libraries (all category names)
+/Imports/
+/Symbols/
+/Footprints/
+/3DModels/
+# Editors and build outputs
+.vscode/
+.idea/
+build/
+dist/
+*.egg-info/
