@@ -270,6 +270,22 @@ Use a new test project to check the complete chain:
 
 A user manual smoke check has confirmed that the import workflow generally works in KiCad and that the linked 3D model loads automatically. This is separate from the automated checks below; it does not establish exhaustive validation of every component or KiCad version.
 
+## Import history
+
+Click **Import history…** at the bottom of the main window to review imports into the current output library root. Records appear newest first and can be filtered by component, MPN, category, nickname or provider. Select a row to see its source files, original ZIP when recorded, selected symbol format, naming mode, destination files and acknowledged warnings. **Copy details** copies this summary for troubleshooting; **Refresh** rereads the local records.
+
+History starts with successful imports made by this version. It does not reconstruct earlier imports or infer their original provider/download. Changing the output root displays that library's history, independently of the current source folder or workspace preferences.
+
+Each event is stored as a separate JSON file in `<output-root>/.kicad-loader-history/`. It distinguishes newly created files, reused identical footprints/models, and packed symbol libraries updated by appending a new symbol. Output paths are stored relative to the library root with SHA-256 hashes of the contents at import time. Previous hashes are included for existing files. The records contain metadata, not copies of the components or complete backup data.
+
+A history record is included in the same application write plan and lock as its assets. An I/O failure while writing the record triggers the usual rollback, including restoration of a packed library that was just extended. Imports remain non-crash-atomic across multiple files; a power loss can leave incomplete assets or history. The existing recovery cautions still apply.
+
+New **Open ZIP…** extractions retain a local `.loader-archive-origin.json` with the original archive path and SHA-256. Imports from those caches include that provenance in the history. Folder inputs and older caches without this metadata report the original ZIP as unknown. The archive does not need to remain available to browse the record. The GUI also records the chosen provider and input mode; direct core imports retain the source file/folder information without assuming a provider.
+
+History is an import-time snapshot. Files may subsequently be changed, moved, deleted or extended by later packed imports; viewing a record does not verify their current state. This version provides no component removal, undo, automatic update or category migration. Those features need additional reference and ownership checks before they can safely use this history.
+
+History is local and excluded by the application's ignore rules and the original library workspace's ignore rules. If you choose another output Git repository, add `.kicad-loader-history/` to its ignore rules if desired; the application does not edit arbitrary repositories. Its records can contain personal source paths. Do not assume it is a transferable package or a backup of your library.
+
 ## Checking your KiCad setup
 
 Click **Check KiCad setup…** beside the symbol output controls. Select the KiCad version settings folder, for example `%APPDATA%/kicad/10.0` on Windows. Detected version folders are listed newest first; **Browse…** handles custom locations. Select the current category or **All categories**, then **Run checks**.
@@ -310,7 +326,7 @@ Plans are tied to their selected output root, and writing rechecks the destinati
 
 ## Git and third-party licensing
 
-The application ignores local preferences, environments, locks, temporary files and the vendor ZIP cache `.kicad-importer-cache/`. Entire `Imports/`, `Symbols/`, `Footprints/` and `3DModels/` trees at the application root are ignored, including custom category names. Tests use synthetic fixtures; no SamacSys or LCSC models are distributed.
+The application ignores local preferences, environments, locks, temporary files, `.kicad-loader-history/` metadata and the vendor ZIP cache `.kicad-importer-cache/`. Entire `Imports/`, `Symbols/`, `Footprints/` and `3DModels/` trees at the application root are ignored, including custom category names. Tests use synthetic fixtures; no SamacSys or LCSC models are distributed.
 
 Libraries saved outside this application folder belong to their own workspace. The loader does not change their Git configuration or ignore rules. Review vendor assets and their licences before staging or publishing; version control remains user-managed.
 
@@ -360,3 +376,5 @@ ZIP regression tests use synthetic multi-CAD archives and cover selective extrac
 Downloads and display-label regressions cover shallow ZIP listing, date ordering, partial files, refresh, folder preference persistence, save failures, missing archives, failed-load recovery, restart selection, exact duplicate asset selection and imports in both output formats.
 
 KiCad setup diagnostics tests cover matching and mismatched nicknames/paths, saved and inherited variables, project overrides, disabled libraries, nested and cyclic tables, missing referenced files, malformed/duplicate registrations, symbol layout/version mismatches, the report GUI and read-only behaviour.
+
+History regressions cover import-time destination hashes, created/updated/reused classifications, packed append history, symbol-only records, rollback after metadata write failures, retry without duplicate events, ZIP provenance, older caches, corrupt records and the read-only filtered history browser.

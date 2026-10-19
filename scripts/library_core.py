@@ -10,6 +10,7 @@ from pathlib import Path
 
 from loader_settings import validate_model_paths, validate_output_layout
 from providers import get_provider
+from import_history import HISTORY_FOLDER, ORIGIN_FILE
 from library_layout import DEFAULT_CATEGORIES, LibraryCategory, validate_segment
 
 CATEGORIES = tuple(category.name for category in DEFAULT_CATEGORIES)
@@ -159,6 +160,8 @@ def scan_directory(folder):
     files = sorted(p for p in root.rglob("*") if p.is_file() and p.resolve().is_relative_to(root))
     modern = {p.with_suffix("") for p in files if p.suffix.lower() == ".kicad_sym"}
     for path in files:
+        if path.parent == root and path.name == ORIGIN_FILE:
+            continue
         key = path.relative_to(root).as_posix()
         try:
             suffix = path.suffix.lower()
@@ -234,13 +237,18 @@ class Plan:
     output_root: Path | None = None
     protected_roots: tuple = ()
     folders: tuple = ()
+    assets: dict = field(default_factory=dict)
+    history: dict | None = None
+    history_file: Path | None = None
 
     def watch_directory(self, path):
         paths = symbol_files(path)
         self.directories[path] = tuple(p.name for p in paths)
         return paths
 
-    def add(self, path, content, merge=False):
+    def add(self, path, content, merge=False, role=None):
+        if role is not None:
+            self.assets[path] = role
         old = path.read_bytes() if path.exists() else None
         if old == content:
             self.info.append(f"Reuse unchanged: {path}")
@@ -314,7 +322,15 @@ def build_plan(repo, inv, symbol_key, fp_key, model_key, category, mode, custom=
         raise ImportErrorDetail("Inherited symbol (extends): export a standalone copy with KiCad before importing")
     safe_name(symbol.name)
     plan = Plan(output_root=repo, protected_roots=protected)
-    plan.info.extend([f"Input folder: {inv.root}", f"Library output root: {repo}"])
+    plan.history = {"symbol": symbol.name, "mpn": symbol.mpn, "category": layout.name,
+                    "library_name": layout.library_name, "model_folder": layout.model_folder,
+                    "symbol_format": symbol_format, "naming_mode": mode,
+                    "input_root": str(inv.root), "source_files": {
+                        "symbol": str(symbol.path),
+                        "footprint": str(inv.footprints[fp_key]) if fp_key else None,
+                        "model": str(inv.models[model_key]) if model_key else None}}
+    plan.info.extend([f"Input folder: {inv.root}", f"Library output root: {repo}",
+                      f"Import history folder: {repo / HISTORY_FOLDER}"])
     for path in (symbol.path, inv.footprints.get(fp_key), inv.models.get(model_key)):
         if path and not path.resolve().is_relative_to(inv.root):
             raise ImportErrorDetail("Source is outside the selected Imports folder")
@@ -353,7 +369,7 @@ def build_plan(repo, inv, symbol_key, fp_key, model_key, category, mode, custom=
             transform[1] = (f"${{{model_variable}}}/3DModels/{layout.model_folder}/{model_name}"
                             if model_path_mode == "variable" else destination_model.as_posix())
             fp.append(transform)
-            plan.add(destination_model, data)
+            plan.add(destination_model, data, role="model")
             if model_path_mode == "variable":
                 plan.info.append(f"KiCad path variable: {model_variable} = {repo}. Changing a shared variable affects all libraries using it.")
             else:
@@ -365,7 +381,7 @@ def build_plan(repo, inv, symbol_key, fp_key, model_key, category, mode, custom=
         if pins != pads:
             plan.warnings.append(f"Pin/pad mismatch: symbol only={sorted(pins - pads)}, footprint only={sorted(pads - pins)}. Check the association.")
         set_prop(node, "Footprint", f"{layout.library_name}:{name}")
-        plan.add(layout.footprint_library(repo) / f"{name}.kicad_mod", (dump(fp) + "\n").encode())
+        plan.add(layout.footprint_library(repo) / f"{name}.kicad_mod", (dump(fp) + "\n").encode(), role="footprint")
     else:
         set_prop(node, "Footprint", "")
         plan.warnings.append("Symbol-only import: its Footprint reference is cleared in the copy.")
@@ -388,7 +404,7 @@ def build_plan(repo, inv, symbol_key, fp_key, model_key, category, mode, custom=
     # Each new unpacked file is a complete native library containing one symbol.
     # Existing files remain untouched, even if they contain several symbols.
     library.append(node)
-    plan.add(destination, (dump(library) + "\n").encode(), merge=symbol_format == "packed")
+    plan.add(destination, (dump(library) + "\n").encode(), merge=symbol_format == "packed", role="symbol")
     plan.info.extend([f"Symbol output: {SYMBOL_FORMATS[symbol_format]}",
                       f"Symbol destination: {destination}",
                       f"Register symbol {'folder' if symbol_format == 'unpacked' else 'file'} in KiCad: {selected}",
@@ -425,6 +441,8 @@ def commit_plan(repo, plan):
     if plan.output_root is not None and repo != plan.output_root:
         raise ImportErrorDetail("The output root changed since validation. Build a new import plan.")
     validate_output_layout(repo, plan.protected_roots)
+    from import_history import add_history_record
+    add_history_record(plan)
     # Validate the whole plan before creating the root or a lock file.
     for path in (*plan.before, *plan.files, *plan.directories, *plan.folders):
         check_destination(path, repo, plan.protected_roots)

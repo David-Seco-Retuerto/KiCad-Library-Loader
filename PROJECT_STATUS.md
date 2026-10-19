@@ -15,6 +15,7 @@ The loader has been extracted from the library repository into an independent ap
 - Downloads source with an in-app ZIP list, configurable remembered folder and refresh.
 - Concise asset labels, with disambiguation for duplicate names and unchanged internal file identities.
 - Read-only KiCad setup diagnostics: global/project/linked tables, nicknames, paths, footprint references and model variables/files.
+- Import history browser with transactional per-import records, output hashes, file action classification and original ZIP provenance for new extractions.
 
 ## Code map
 
@@ -27,6 +28,7 @@ The loader has been extracted from the library repository into an independent ap
 - `scripts/archive_import.py`: bounded native ZIP extraction and managed cache cleanup on failure.
 - `scripts/step_preview.py`: OpenCascade tessellation and preview support.
 - `scripts/kicad_diagnostics.py`, `diagnostics_dialog.py`: saved KiCad configuration and asset reference reports.
+- `scripts/import_history.py`, `history_dialog.py`: import-time provenance records and a read-only history browser.
 - `scripts/verify_local.py`: optional real-export verification with temporary outputs.
 - `tests/`: synthetic core and GUI regression tests.
 
@@ -65,4 +67,8 @@ Fourteen synthetic archive/GUI regression tests additionally cover extraction bo
 
 ## Next integration step
 
-Check KiCad setup is now available as a read-only diagnostic. Automatic library-table registration and changes to KiCad preferences are not implemented. Native KiCad 10 directory loading remains a separate validation task; a configuration report does not establish it. Import history, component updates and managed category migration remain future work.
+Check KiCad setup is now available as a read-only diagnostic. Automatic library-table registration and changes to KiCad preferences are not implemented. Native KiCad 10 directory loading remains a separate validation task; a configuration report does not establish it. Import history is implemented. Component updates, undo/removal and managed category migration remain future work; historical records alone do not establish ownership or current references.
+
+## Import history implementation
+
+Successful imports now commit a new local metadata record alongside their assets. New ZIP extractions retain archive path/hash provenance in the ignored cache. Existing pre-feature imports are not reconstructed. Records can be viewed and filtered for the current output root; no delete/undo/update action is provided yet. The history directory is excluded in both the application and original library workspace ignore files. No Git operations were performed.

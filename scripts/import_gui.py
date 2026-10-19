@@ -22,6 +22,7 @@ from search_dialog import SearchDialog
 from archive_import import extract_native_zip, discard_extraction
 from input_choices import asset_choices, downloaded_zips
 from diagnostics_dialog import DiagnosticsDialog
+from history_dialog import HistoryDialog
 from settings_dialog import FolderSettingsDialog
 from categories_dialog import CategoriesDialog, FolderPreviewDialog
 
@@ -294,7 +295,9 @@ class App:
         main.rowconfigure(12, weight=1)
         ttk.Checkbutton(main, text="I have reviewed the warnings and associations", variable=self.ack).grid(row=13, column=0, columnspan=3, sticky="w")
         actions = ttk.Frame(main)
-        actions.grid(row=14, column=0, columnspan=3, sticky="e", pady=(8, 0))
+        actions.grid(row=14, column=0, columnspan=3, sticky="ew", pady=(8, 0))
+        ttk.Button(actions, text="Import history…", command=self.open_history).pack(side="left")
+        ttk.Frame(actions).pack(side="left", fill="x", expand=True)
         ttk.Button(actions, text="Validate / review plan", command=self.validate).pack(side="left", padx=8)
         self.import_button = ttk.Button(actions, text="Import", command=self.import_component, state="disabled")
         self.import_button.pack(side="left")
@@ -490,6 +493,9 @@ class App:
     def open_categories(self):
         return CategoriesDialog(self.root, self.repo, self.settings, self.apply_settings)
 
+    def open_history(self):
+        return HistoryDialog(self.root, self.settings.output_root)
+
     def check_kicad_setup(self):
         if self.settings_error:
             messagebox.showerror("Cannot check KiCad setup", "Correct the saved loader settings first.", parent=self.root)
@@ -658,8 +664,10 @@ class App:
                 self.validate()
                 self.log_text("Files changed. Review the new plan and import again.\n" + "\n".join(self.plan.info + self.plan.warnings) if self.plan else "Files changed. Validate again.")
                 return
+            latest.history.update({"provider": self.source.get(),
+                                   "input_mode": "downloads" if self.source_choice.get() == "Downloads" else "provider"})
             commit_plan(self.settings.output_root, latest)
-            self.log_text("Import completed.\n" + "\n".join(latest.info) + "\nRegister the generated symbol and footprint libraries in KiCad. Existing libraries and KiCad settings were not moved or reconfigured.")
+            self.log_text("Import completed. History recorded. \n" + "\n".join(latest.info) + "\nRegister the generated symbol and footprint libraries in KiCad. Existing libraries and KiCad settings were not moved or reconfigured.")
             self.plan = None
             self.update_import_button()
         except (OSError, ValueError, KeyError, IndexError) as exc:

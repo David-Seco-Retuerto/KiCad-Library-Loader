@@ -1,6 +1,8 @@
 """Extract native assets from local ZIP downloads into a persistent local cache."""
 from pathlib import Path, PurePosixPath
 import shutil
+import json
+from import_history import ORIGIN_FILE, file_hash
 import stat
 import tempfile
 import zipfile
@@ -98,6 +100,9 @@ def extract_native_zip(archive_path, workspace):
             inventory = scan_directory(destination)
             if not inventory.symbols:
                 raise ValueError("No readable native KiCad symbols found. " + "\n".join(inventory.notices[:5]))
+            origin = {"archive_path": str(Path(archive_path).resolve()), "archive_sha256": file_hash(archive_path)}
+            with (destination / ORIGIN_FILE).open("x", encoding="utf-8") as handle:
+                json.dump(origin, handle, ensure_ascii=False, indent=2)
         return destination
     except (zipfile.BadZipFile, zipfile.LargeZipFile, NotImplementedError, RuntimeError) as exc:
         if destination is not None:

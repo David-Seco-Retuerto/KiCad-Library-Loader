@@ -41,7 +41,7 @@ class ArchiveTests(unittest.TestCase):
         self.assertEqual(result.parent, cache_directory(self.workspace))
         files = {p.relative_to(result).as_posix() for p in result.rglob("*") if p.is_file()}
         self.assertEqual(files, {"PART/KiCad/part.kicad_sym", "PART/KiCad/GEOM.kicad_mod",
-                                 "PART/3D/TEST123.stp", "license.txt", "PART/part_info.txt"})
+                                 "PART/3D/TEST123.stp", "license.txt", "PART/part_info.txt", ".loader-archive-origin.json"})
         self.assertEqual(hashlib.sha256(self.archive.read_bytes()).hexdigest(), before)
         self.assertFalse((self.workspace / "Symbols").exists())
         second = extract_native_zip(self.archive, self.workspace)

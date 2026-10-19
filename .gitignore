@@ -23,3 +23,6 @@ dist/
 
 # Local vendor assets extracted from downloaded ZIPs
 /.kicad-importer-cache/
+
+# Local import history and source paths
+.kicad-loader-history/
