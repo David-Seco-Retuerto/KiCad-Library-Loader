@@ -21,6 +21,7 @@ from providers import PROVIDERS, get_provider
 from search_dialog import SearchDialog
 from archive_import import extract_native_zip, discard_extraction
 from input_choices import asset_choices, downloaded_zips
+from diagnostics_dialog import DiagnosticsDialog
 from settings_dialog import FolderSettingsDialog
 from categories_dialog import CategoriesDialog, FolderPreviewDialog
 
@@ -234,6 +235,7 @@ class App:
         self.format_combo = ttk.Combobox(format_row, textvariable=self.symbol_format,
                                          values=list(SYMBOL_FORMATS.values()), state="readonly", width=27)
         self.format_combo.pack(side="left", padx=10)
+        ttk.Button(format_row, text="Check KiCad setup…", command=self.check_kicad_setup).pack(side="right", padx=(10, 0))
         ttk.Button(format_row, text="Prepare library folders…", command=self.prepare_library_folders).pack(side="right")
         download_row = ttk.Frame(options)
         download_row.pack(fill="x", pady=(4, 6))
@@ -487,6 +489,12 @@ class App:
 
     def open_categories(self):
         return CategoriesDialog(self.root, self.repo, self.settings, self.apply_settings)
+
+    def check_kicad_setup(self):
+        if self.settings_error:
+            messagebox.showerror("Cannot check KiCad setup", "Correct the saved loader settings first.", parent=self.root)
+            return
+        return DiagnosticsDialog(self.root, self.settings, self.selected_format(), self.category.get())
 
     def prepare_library_folders(self):
         try:

@@ -270,6 +270,25 @@ Use a new test project to check the complete chain:
 
 A user manual smoke check has confirmed that the import workflow generally works in KiCad and that the linked 3D model loads automatically. This is separate from the automated checks below; it does not establish exhaustive validation of every component or KiCad version.
 
+## Checking your KiCad setup
+
+Click **Check KiCad setup…** beside the symbol output controls. Select the KiCad version settings folder, for example `%APPDATA%/kicad/10.0` on Windows. Detected version folders are listed newest first; **Browse…** handles custom locations. Select the current category or **All categories**, then **Run checks**.
+
+Optionally select a **Project folder** to include that project's `sym-lib-table` and `fp-lib-table`. Entries in the project tables override global entries with the same nickname. Without a project selection, only global registrations are checked. Linked `Table` entries are inspected, with cycle and nesting protection.
+
+The report checks:
+
+- Category nicknames and registered symbol/footprint library locations, including a packed/unpacked path mismatch or a disabled entry.
+- A folder registered under another nickname, such as `DVL_uCs` when the imported references require `uCs`, with the expected nickname and destination to configure in KiCad.
+- The existence of generated library paths and the footprints referenced by their symbols.
+- Saved path variables from `kicad_common.json`, overridden by the loader's inherited environment where present; `${KIPRJMOD}` requires a selected project folder.
+- Whether the configured portable model variable targets the output root, and whether the actual model references in generated footprints resolve to existing files.
+- Unpacked output used with an explicitly selected KiCad version profile older than 10.
+
+**Copy report** copies the findings for troubleshooting. Correct registrations in KiCad using **Preferences → Manage Symbol Libraries**, **Manage Footprint Libraries** or **Configure Paths**, then run checks again. This feature reads configuration and library files; it does not add, rename, register or delete libraries, and does not edit KiCad settings or PCB/schematic files.
+
+An OK result means the inspected saved paths and references match. It does not test native CAD loading, component geometry, electrical correctness, all project instances or pin-to-pad alignment. Unreadable/linked tables are reported; entries in those tables cannot be confirmed. A running KiCad session may have unsaved settings or a different inherited environment. Choose the relevant project and profile to get a useful result. The output format is captured from the main window when the report dialog is opened.
+
 ## Supported inputs and limits
 
 - Native `.kicad_sym` libraries, `.kicad_mod` files with a `module` or `footprint` root, and `.stp`/`.step` models are supported in either source folder.
@@ -339,3 +358,5 @@ Browser-search tests cover URL encoding, explicit browser launching, invalid/emp
 ZIP regression tests use synthetic multi-CAD archives and cover selective extraction, retained licence metadata, traversal/absolute/device paths, symlinks, duplicate paths, size/count limits, damaged or legacy-only archives, cleanup, Cancel/Save failure behaviour, provider handoff and validated imports in both KiCad output formats. A real NUP2105LT1G SamacSys ZIP was also tested using temporary extraction and output: both layouts, STEP preview and KiCad 9 SVG exports passed. Native directory loading still requires a separate KiCad 10 check.
 
 Downloads and display-label regressions cover shallow ZIP listing, date ordering, partial files, refresh, folder preference persistence, save failures, missing archives, failed-load recovery, restart selection, exact duplicate asset selection and imports in both output formats.
+
+KiCad setup diagnostics tests cover matching and mismatched nicknames/paths, saved and inherited variables, project overrides, disabled libraries, nested and cyclic tables, missing referenced files, malformed/duplicate registrations, symbol layout/version mismatches, the report GUI and read-only behaviour.

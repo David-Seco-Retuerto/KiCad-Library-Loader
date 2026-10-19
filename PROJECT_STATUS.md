@@ -14,6 +14,7 @@ The loader has been extracted from the library repository into an independent ap
 - Open ZIP for native KiCad downloads, selective extraction into an ignored persistent cache, and review/import through either output format.
 - Downloads source with an in-app ZIP list, configurable remembered folder and refresh.
 - Concise asset labels, with disambiguation for duplicate names and unchanged internal file identities.
+- Read-only KiCad setup diagnostics: global/project/linked tables, nicknames, paths, footprint references and model variables/files.
 
 ## Code map
 
@@ -25,6 +26,7 @@ The loader has been extracted from the library repository into an independent ap
 - `scripts/input_choices.py`: asset display labels and shallow date-ordered download listing.
 - `scripts/archive_import.py`: bounded native ZIP extraction and managed cache cleanup on failure.
 - `scripts/step_preview.py`: OpenCascade tessellation and preview support.
+- `scripts/kicad_diagnostics.py`, `diagnostics_dialog.py`: saved KiCad configuration and asset reference reports.
 - `scripts/verify_local.py`: optional real-export verification with temporary outputs.
 - `tests/`: synthetic core and GUI regression tests.
 
@@ -60,3 +62,7 @@ Manual searches now use `https://ms.componentsearchengine.com/search.html?search
 A real NUP2105LT1G SamacSys multi-CAD ZIP was opened using the new extractor in a temporary settings workspace. Only its native symbol, footprint, STEP and licence/part metadata were extracted. The normal import pipeline generated packed and unpacked outputs, rendered the STEP and exported symbol/footprint SVGs with KiCad 9.0.7. The original ZIP was unchanged and production libraries were not modified. KiCad 10 native directory loading remains pending.
 
 Fourteen synthetic archive/GUI regression tests additionally cover extraction boundaries and failure handling, persisted input selection and preserving the chosen KiCad output format. Downloads and browsing remain manual; Open ZIP handles an already downloaded native archive without requiring SamacSys Library Loader.
+
+## Next integration step
+
+Check KiCad setup is now available as a read-only diagnostic. Automatic library-table registration and changes to KiCad preferences are not implemented. Native KiCad 10 directory loading remains a separate validation task; a configuration report does not establish it. Import history, component updates and managed category migration remain future work.
