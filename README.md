@@ -1,6 +1,6 @@
 # KiCad Library Loader
 
-A Python/Tkinter application for importing native KiCad symbols, footprints and STEP models from local SamacSys or LCSC folders. Select each asset independently, review the plan and import without overwriting existing components. Source files are never modified.
+A Python/Tkinter application for importing native KiCad symbols, footprints and STEP models from local SamacSys or LCSC folders, downloaded ZIPs, or integrated LCSC acquisition through easyeda2kicad. Select each asset independently, review the plan and import without overwriting existing components. Source files are never modified.
 
 This is the standalone application. Your KiCad libraries and provider downloads can live in separate folders; no library repository or vendor assets are bundled. The source remains in `scripts/`, with tests in `tests/`. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the code map and remaining work.
 
@@ -68,9 +68,9 @@ Click **Search online…** to enter a manufacturer part number or keyword. The c
 - **SamacSys** opens the [SamacSys / Mouser Component Search portal](https://ms.componentsearchengine.com/) using `search.html?searchString=...`. This is the preferred portal for the current manual download workflow. Sign in on that portal first; if login clears a search, click **Open search in browser** again to repeat it.
 - **LCSC** opens [LCSC search](https://www.lcsc.com/).
 
-Changing the search provider does not change the active import source. Opening this dialog performs no network requests; only the explicit browser button opens the selected search URL. The loader does not scrape results, sign in, download files or use provider APIs. **Open ZIP…** loads files you have already downloaded. Site availability, login requirements and search results are handled by the website in your browser. Automated tests mock browser launching; a live browser search is a manual check.
+Changing the search provider does not change the active import source. Opening this dialog performs no network requests; only the explicit browser button opens the selected search URL. The browser-search action does not scrape results, sign in or download files. The separate **Download LCSC…** action can invoke a converter installed with the loader as described below. **Open ZIP…** loads files you have already downloaded. Site availability, login requirements and search results are handled by the website in your browser. Automated tests mock browser launching; a live browser search is a manual check.
 
-Current real-world download and import validation focuses on SamacSys. LCSC remains available, with real-export validation and automatic EasyEDA conversion deferred.
+SamacSys native ZIP imports and a single LCSC/EasyEDA component (RP2040, C2040) have been checked. This is limited sample coverage; it does not establish availability or correctness for every component.
 
 After downloading:
 
@@ -81,21 +81,66 @@ After downloading:
 
 **Use export folder…** changes the configured input folder for that provider. It does not merge the folder with previous inputs or move/copy downloaded files. **Open ZIP…** is the separate action that extracts a downloaded archive into the local cache. You can restore a previous input through **Settings…**. Avoid choosing a general Downloads folder containing unrelated or partially downloaded files; use a dedicated, fully extracted export folder. Unsupported containers and formats are reported using the existing scanner.
 
+## Downloading one LCSC component
+
+**Download LCSC…** in the main window obtains one exact LCSC part using **easyeda2kicad 1.0.1**, installed automatically with the loader requirements. It is also available in **Search online…** when LCSC is selected. Browser search remains permanently available for choosing manufacturer/package variants.
+
+No separate converter environment or executable selection is required. Existing installations can update the loader environment from the repository root:
+
+```powershell
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+1. Click **Download LCSC…**. By default the loader resolves the converter from the same Python environment as the running application, without searching PATH or personal folders. Old saved external executable paths do not activate an override automatically.
+2. Enter one exact part code, such as `C2040`. MPN searches, arbitrary URLs, multiple-part requests and command arguments are not accepted here. Use **Search online…** to find the correct code/package first.
+3. Click **Download and load for review**. This explicitly starts the loader-installed converter (or your enabled advanced override) with `--full --lcsc_id <code> --output <unique-cache-prefix>` without a shell or overwrite flag. The GUI remains responsive and offers cancellation; progress indicates activity, not a measured percentage.
+4. On success, the LCSC input switches to the new native assets. Other provider folders, output root, categories and chosen KiCad format are preserved. Review the component, symbol/pin/pad mapping, footprint dimensions and STEP alignment, then use the normal validation and **Import**. Downloading never imports automatically.
+
+**Use an external converter (advanced)** is available for testing another installation. Enable it explicitly, then choose its executable; the mode and path are remembered locally. This setting is normally off. A missing default dependency reports the command to update loader requirements; the application does not install software or access the network merely by opening the dialog. The converter runs as a separate process to keep cancellation and the GUI responsive; users do not need to manage a second venv.
+
+[easyeda2kicad](https://github.com/uPesy/easyeda2kicad.py) is third-party software developed by uPesy and contributors, declared AGPL-3.0 by release 1.0.1. It is installed as a normal pinned dependency, with its licence and attribution retained in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and [the included licence text](licenses/easyeda2kicad-AGPL-3.0.txt). No converter implementation has been copied into the loader scripts. Full installer packaging, application licensing and matching source distribution remain release-preparation work.
+
+The dependency's provider interface and service access remain distinct from native import support. No provider credentials or browser cookies are requested or stored by the loader. The sample worked without a credential prompt; availability and account requirements may differ for other parts or service versions.
+
+Each run creates `<settings-workspace>/.kicad-importer-cache/lcsc-<unique-id>/`, with `assets/` and a converter log. The child process runs in that directory. Successful caches persist so review and import can continue later. Failed/cancelled runs are cleaned within that bounded cache, and the previously loaded input/reviewed plan remains unchanged. A timeout stops a slow converter. Size/entry checks reject excessive local output; these checks do not sandbox an arbitrary executable or control its HTTP transport. Closing the download dialog during a run requests cancellation; closing the application also cancels the worker.
+
+Before loading, native symbols/footprints must parse and the generated symbol's `LCSC Part` field must match the requested code. A missing or ambiguous STEP is reported, not fabricated. A WRL model reference can auto-select a unique STEP with the same basename; duplicates leave the selection empty for explicit review. The importer uses STEP, retains the selected reference transform and does not convert WRL geometry into STEP. Check alignment, since equivalent model filenames do not guarantee identical coordinate systems.
+
+A local `.loader-acquisition.json` records the code, converter version when reported, retrieval time and original generated file hashes. Successful imports include that provenance in history, separately from ZIP provenance. These are acquisition-time hashes, not a certificate that source files have never changed afterwards. Caches and vendor assets remain excluded from source control. Existing download/update/restore protections still apply.
+
+This first integration is an explicit single-code workflow. It does not provide an in-app online results catalog, unattended polling, bulk downloads, automatic authentication or direct SamacSys downloading. It relies on the external tool's provider interfaces, which are not claimed to be an official supported standalone API. See the roadmap and provider-specific feasibility notes for the remaining work.
+
 ## Downloads as an input source
 
 Enable **Auto-refresh** in Downloads mode to check the selected folder every three seconds while the application is open. The option is off initially and remembered between sessions. It updates only the ZIP list and a separate status message; it preserves the selected ZIP when available, loaded assets and any reviewed import plan. If the selected ZIP disappears, the dropdown becomes empty; already extracted assets remain available. Polling pauses outside Downloads mode and during a busy preview operation. Missing or temporarily unreadable folders show a status message and are retried.
 
-Auto-refresh does not extract or import anything, open a browser, or certify download completion. A `.zip` may still be downloading; incomplete extensions such as `.crdownload` are excluded. Select a ZIP or click **Load ZIP** to read it through the normal archive validation. Replacing a ZIP under the same name does not reload its assets automatically. The watcher stops when the application closes.
+**Auto-refresh alone** does not extract or import anything, open a browser, or certify download completion. The separate session-only **Auto-load new ZIPs** option can extract and load new arrivals for review, as described below. A `.zip` may still be downloading; incomplete extensions such as `.crdownload` are excluded. Select a ZIP or click **Load ZIP** to read it through the normal archive validation. The main **Refresh** button in Downloads mode explicitly loads the newest ZIP, even when another component is loaded. With Auto-refresh alone, replacing a ZIP under the same name does not reload its assets automatically. The watcher stops when the application closes.
 
 Choose **Downloads** in the main **Source** selector to show a list of ZIP files inside the application, newest first. The initial folder is `~/Downloads`; **Folder…** selects another location and remembers it across sessions. The list reads only ZIP filenames directly in that folder. It does not recurse, scan archive contents in the background or include browser partial-download extensions.
 
-Select a ZIP in the dropdown to load its assets, or use **Load ZIP** for the displayed entry. Merely opening Downloads mode or refreshing the list does not extract files. **Refresh** updates the list after another browser download; existing loaded assets still pass through the normal previews, naming, category and format selection, validation and explicit import. Both KiCad output formats remain available.
+Select a ZIP in the dropdown to load its assets, or use **Load ZIP** for the displayed entry. Merely opening Downloads mode or a passive list refresh does not extract files. Clicking the main **Refresh** button explicitly requests loading the newest ZIP. **Refresh** orders ZIPs by file modification time (newest first) and loads the first ZIP; existing loaded assets still pass through the normal previews, naming, category and format selection, validation and explicit import. Both KiCad output formats remain available.
 
-Downloads is an intake location rather than an online provider. Browser search still uses the current SamacSys or LCSC provider; no download API or automatic browser download is involved. A loaded ZIP uses the same local cache as **Open ZIP…** and replaces that provider's active input folder. Source paths for the other provider and the output library remain unchanged. Choose **SamacSys** or **LCSC** to return to their configured local input folders, or **Use export folder…** to restore a particular folder.
+Downloads is an intake location rather than an online provider. Browser search still uses the current SamacSys or LCSC provider; listing Downloads does not invoke a download API or start a browser download. Direct LCSC acquisition is a separate explicit action. A loaded ZIP uses the same local cache as **Open ZIP…** and replaces that provider's active input folder. Source paths for the other provider and the output library remain unchanged. Choose **SamacSys** or **LCSC** to return to their configured local input folders, or **Use export folder…** to restore a particular folder.
 
 The last successfully loaded archive is retained across restarts so that an unrelated newer ZIP is not displayed as if it supplied the currently loaded component. A failed ZIP load leaves the preceding assets and reviewed plan intact and restores the corresponding selection. If an archive has been moved or removed, its extracted cache may still be used; refresh and choose an available ZIP to load a different component.
 
 Asset dropdowns display symbol names and footprint/STEP filenames rather than complete relative paths. Duplicate names include a source path to distinguish them. Internally the full asset identities are preserved, including manual choices and intentionally empty footprint/model selections.
+
+## Automatically loading new browser downloads
+
+For the SamacSys browser workflow, open **Search online…**, open the preferred search in your browser, then click **Watch Downloads for new ZIPs**. This selects Downloads for that provider, closes the search dialog and arms **Auto-load new ZIPs**. Alternatively, select Downloads and tick **Auto-load new ZIPs** in the main window. Use **Folder…** to choose the browser's download folder.
+
+This option is off at every application start and is not persisted. Enabling it also enables Auto-refresh. ZIPs already present when watching starts are a baseline and are skipped. New ZIP filenames or replacements observed afterwards are candidates. Selecting another source/folder, manual ZIP loading, or disabling/rearming the option resets pending arrivals; existing files are baselined again rather than unexpectedly loaded. Disabling Auto-refresh also disables automatic loading.
+
+A candidate must have a nonzero size and unchanged size/modification time for at least six seconds across the normal three-second polls. Browser sidecars such as `.zip.crdownload`, `.zip.part` and `.zip.download` defer loading. This is a completion heuristic, not a browser completion event: ZIP/native-content validation and before/after file-hash/stat checks are also required. Automatic loading rejects ZIPs over 250 MB; manual Open ZIP retains its existing selected-asset limits.
+
+Extraction and hashing run in a background thread. Current ZIP-cache boundaries, selected-file limits and path protections apply. Only native symbols, footprints, STEP and supported notices/metadata are extracted; ZIPs with no readable native symbol are skipped. No requests are made to SamacSys by this watcher, and no account credentials or browser cookies are accessed.
+
+When valid, the new assets become the active provider input and the ZIP provenance is retained. This replaces the main-window component selection and invalidates the previous import review/acknowledgement. It **does not import into your library**: inspect the symbol, footprint and model, validate the plan, then explicitly Import. If several candidates are ready together, the newest by modification time is chosen; older pending candidates are dropped after a successful load rather than cycling through components. Further newer arrivals can still be processed.
+
+Automatic loading waits while another loader dialog is open or the app is busy. Source/option changes and application closure cancel or discard an in-flight result. Unsupported/broken ZIPs and failed preference saves leave the preceding component/review intact; a separate status message explains the failure without repeated modal errors. A rejected unchanged ZIP is not retried continuously; use Load ZIP manually or replace the file to retry.
+
+**Manual Refresh is separate:** in Downloads mode it attempts the newest listed ZIP immediately, even if it predates this watching session. If it is incomplete or invalid, an error is shown and the previously loaded component/review is retained. Outside Downloads, Refresh continues to rescan the selected export folder.
 
 ## Opening downloaded ZIP files
 
@@ -322,7 +367,7 @@ A history record is included in the same application write plan and lock as its 
 
 New **Open ZIP…** extractions retain a local `.loader-archive-origin.json` with the original archive path and SHA-256. Imports from those caches include that provenance in the history. Folder inputs and older caches without this metadata report the original ZIP as unknown. The archive does not need to remain available to browse the record. The GUI also records the chosen provider and input mode; direct core imports retain the source file/folder information without assuming a provider.
 
-History is an import-time snapshot. Files may subsequently be changed, moved, deleted or extended by later packed imports; viewing a record does not verify their current state. Reviewed in-place updates are now available as described above. Reviewed restoration of the latest component update is available below. Component removal, undoing initial imports, unattended updates and category migration are not implemented.
+History is an import-time snapshot. Files may subsequently be changed, moved, deleted or extended by later packed imports; viewing a record does not verify their current state. Reviewed in-place updates are now available as described above. Reviewed restoration of the latest component update is described above. Component removal, undoing initial imports, unattended updates and category migration are not implemented.
 
 History is local and excluded by the application's ignore rules and the original library workspace's ignore rules. If you choose another output Git repository, add `.kicad-loader-history/` to its ignore rules if desired; the application does not edit arbitrary repositories. Its records can contain personal source paths. Do not assume it is a transferable package or a backup of your library.
 
@@ -377,11 +422,11 @@ Ignore rules do not untrack previously committed files. Review `git ls-files` an
 Independent input/output paths, configurable categories/library names and explicit folder preparation are implemented. The next steps are:
 
 1. Complete a repeatable manual schematic-to-PCB/3D workflow check. Native KiCad 10.0.7 symdir loading and KiCad 9.0.7 packed loading have passed CLI verification; standalone extraction is implemented.
-2. Browser search and explicit downloaded-export folder selection are implemented. Next, check the complete browser/download workflow manually with real exports, using SamacSys; real LCSC validation remains deferred.
+2. Browser search and explicit downloaded-export folder selection are implemented. Next, check the complete browser/download workflow manually with real exports, using SamacSys. Optional automatic native ZIP intake is implemented, with the browser retaining control of website downloads. The first LCSC C2040 acquisition/GUI/native-output check has passed; broader real-part coverage is still needed.
 3. Standalone publication, followed by KiCad plugin packaging.
 4. Provider-specific API search and downloads, subject to available access.
 
-`providers.py` contains the local source adapters, with stable identifiers and a shared native-file scanning contract. It separates provider selection from the GUI and output settings. These adapters build browser search links and scan local exports. They perform no HTTP requests or downloads; native KiCad exports remain required.
+`providers.py` contains the local source adapters, with stable identifiers and a shared native-file scanning contract. It separates provider selection from the GUI and output settings. These adapters build browser search links and scan local exports. They perform no HTTP requests or downloads; native KiCad assets remain required at the import boundary. The separate acquisition module can obtain those assets through an external converter.
 
 ## Testing
 
@@ -433,11 +478,13 @@ Update regressions cover both symbol formats, exact backups, packed sibling pres
 
 ## Roadmap: direct online acquisition
 
-Direct downloading of component CAD assets is a planned feature, separate from the existing browser search and passive Downloads list. The intended flow is: search by MPN, choose the exact manufacturer/package/variant, download the available native symbol/footprint/STEP assets into the local cache, then review and explicitly import them through the existing validation pipeline.
+See the dated [SamacSys feasibility review](docs/SAMACSYS_INTEGRATION.md) for official sources, confirmed findings and open access questions. No self-service download API contract was located in the inspected public documentation; provider confirmation is the next prerequisite. This does not mean no API exists. The published website terms also include automation restrictions, so the browser account is not treated as sufficient integration permission.
+
+An initial explicit LCSC-code download through easyeda2kicad installed with the loader is implemented above. Broader integrated online search/direct acquisition remains planned, separate from browser search and the passive Downloads list. The intended flow is: search by MPN, choose the exact manufacturer/package/variant, download the available native symbol/footprint/STEP assets into the local cache, then review and explicitly import them through the existing validation pipeline.
 
 - Start by investigating a supported SamacSys integration, including available provider interfaces, authentication, access and redistribution conditions. API availability or download permission is not assumed.
 - Add explicit download progress, cancellation, partial-download handling, archive validation and provenance. Downloads must never import silently or include provider assets in this source repository.
-- Extend to other providers where supported; LCSC/EasyEDA access, conversion and real-export validation remain separate work.
+- Broaden the initial LCSC/easyeda2kicad integration with more real-part coverage and provider-access clarification, then evaluate other providers where supported. SamacSys direct acquisition remains unimplemented.
 - Keep **Search online…** permanently, including after direct downloads are implemented, so users can browse alternative packages and variants manually. A supported browser/download handoff remains useful where a provider has no suitable integration.
 
 Direct acquisition and provider feasibility are explicit milestones alongside release preparation. A future KiCad plugin can expose the same importer and acquisition workflow; it does not replace the standalone application.

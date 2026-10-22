@@ -3,3 +3,6 @@
 # Optional: installed KiCad/kicad-cli for exact SVG previews.
 # STEP preview: OpenCascade without the large VTK dependency.
 cadquery-ocp-novtk==7.9.3.1.1
+
+# LCSC acquisition/conversion, installed in the loader environment (AGPL-3.0).
+easyeda2kicad==1.0.1

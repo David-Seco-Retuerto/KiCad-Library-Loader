@@ -4,6 +4,8 @@ from __future__ import annotations
 import argparse
 from dataclasses import replace
 import math
+import queue
+import time
 import os
 import re
 from pathlib import Path
@@ -19,8 +21,11 @@ from step_preview import StepWindow
 from loader_settings import LoaderSettings
 from providers import PROVIDERS, get_provider
 from search_dialog import SearchDialog
+from lcsc_dialog import LcscDownloadDialog
+from lcsc_download import lcsc_code
 from archive_import import extract_native_zip, discard_extraction
 from input_choices import asset_choices, downloaded_zips
+from download_watch import ZipArrivalTracker, ArrivalChanged, fingerprint, has_partial, prepare_arrival
 from diagnostics_dialog import DiagnosticsDialog
 from history_dialog import HistoryDialog
 from component_updates import build_update_plan
@@ -30,7 +35,7 @@ from categories_dialog import CategoriesDialog, FolderPreviewDialog
 
 from library_core import (SYMBOL_FORMATS, ImportErrorDetail, associate, associate_model,
                           build_folder_plan, build_plan, child, children, commit_plan, load_preferences,
-                          read_tree, safe_name, save_preferences, scan, suggestion, walk)
+                          read_tree, prop, safe_name, save_preferences, scan, suggestion, walk)
 
 
 from kicad_tools import find_cli
@@ -182,6 +187,10 @@ class App:
             self.settings_error = str(exc)
         self.inv, self.plan = None, None
         self.busy = False
+        saved_tool = self.prefs.get("easyeda2kicad_executable")
+        self.easyeda_executable = saved_tool if isinstance(saved_tool, str) else ""
+        self.easyeda_use_external = self.prefs.get("easyeda2kicad_use_external") is True
+        self.lcsc_dialog = None
         saved_source = self.prefs.get("source")
         self.source = tk.StringVar(value=saved_source if isinstance(saved_source, str) and saved_source in PROVIDERS else next(iter(PROVIDERS)))
         self.source_choice = tk.StringVar(value="Downloads" if self.prefs.get("input_mode") == "downloads" else self.source.get())
@@ -195,6 +204,14 @@ class App:
         self.download_status = tk.StringVar()
         self.download_watch_job = None
         self.download_watch_snapshot = None
+        self.auto_load_zips = tk.BooleanVar(value=False)
+        self.zip_tracker = ZipArrivalTracker()
+        self.auto_zip_context = None
+        self.auto_zip_generation = 0
+        self.auto_zip_cancel = threading.Event()
+        self.auto_zip_messages = queue.Queue()
+        self.auto_zip_busy = False
+        self.download_watch_closed = False
         saved_category = self.prefs.get("category")
         self.category = tk.StringVar(value=saved_category if self.settings.get_category(saved_category) else self.settings.categories[0].name)
         saved_format = self.prefs.get("symbol_format", "unpacked")
@@ -224,7 +241,7 @@ class App:
         source = ttk.Combobox(top, textvariable=self.source_choice, values=["Downloads", *PROVIDERS], state="readonly", width=15)
         source.pack(side="left", padx=10)
         source.bind("<<ComboboxSelected>>", lambda _: self.select_source_choice())
-        ttk.Button(top, text="Refresh", command=self.refresh).pack(side="left")
+        ttk.Button(top, text="Refresh", command=self.refresh_action).pack(side="left")
         ttk.Button(top, text="Settings…", command=self.open_settings).pack(side="right")
         ttk.Button(top, text="Categories…", command=self.open_categories).pack(side="right", padx=8)
         ttk.Label(top, text="Category").pack(side="left", padx=(35, 10))
@@ -243,8 +260,9 @@ class App:
         download_row.pack(fill="x", pady=(4, 6))
         ttk.Button(download_row, text="Open ZIP…", command=self.open_zip).pack(side="left", padx=(0, 10))
         ttk.Button(download_row, text="Search online…", command=self.open_search).pack(side="left")
+        ttk.Button(download_row, text="Download LCSC…", command=self.open_lcsc_download).pack(side="left", padx=(10, 0))
         ttk.Button(download_row, text="Use export folder…", command=self.use_export_folder).pack(side="left", padx=10)
-        ttk.Label(download_row, text="Open a download ZIP or refresh an export folder.").pack(side="left")
+        ttk.Label(download_row, text="Review downloaded assets before importing.").pack(side="left")
         self.download_frame = ttk.Frame(options)
         ttk.Label(self.download_frame, text="Downloaded ZIP").pack(side="left")
         self.download_combo = ttk.Combobox(self.download_frame, textvariable=self.download_zip, state="readonly")
@@ -254,7 +272,9 @@ class App:
         ttk.Button(self.download_frame, text="Folder…", command=self.choose_downloads_folder).pack(side="left", padx=(10, 0))
         ttk.Checkbutton(self.download_frame, text="Auto-refresh", variable=self.watch_downloads,
                         command=self.toggle_download_watch).pack(side="left", padx=10)
-        self.download_status_label = ttk.Label(options, textvariable=self.download_status)
+        ttk.Checkbutton(self.download_frame, text="Auto-load new ZIPs", variable=self.auto_load_zips,
+                        command=self.toggle_auto_zip).pack(side="left")
+        self.download_status_label = ttk.Label(options, textvariable=self.download_status, wraplength=1000)
         self.asset_displays = {}
         self.asset_choices = {}
         self.combos = {}
@@ -338,7 +358,9 @@ class App:
                                 "categories": [category.to_preferences() for category in settings.categories],
                                 "input_mode": "downloads" if self.source_choice.get() == "Downloads" else "provider",
                                 "downloads_folder": str(self.downloads_folder), "active_zip": self.active_zip,
-                                "watch_downloads": self.watch_downloads.get()})
+                                "watch_downloads": self.watch_downloads.get(),
+                                "easyeda2kicad_executable": self.easyeda_executable,
+                                "easyeda2kicad_use_external": self.easyeda_use_external})
             save_preferences(self.prefs_path, preferences)
             self.prefs = preferences
         except OSError as exc:
@@ -369,24 +391,175 @@ class App:
             self.download_status_label.pack_forget()
 
     def toggle_download_watch(self):
+        if not self.watch_downloads.get():
+            self.auto_load_zips.set(False)
+        self.cancel_auto_zip()
         self.download_watch_snapshot = None
         self.download_status.set("Auto-refresh enabled; ZIPs still need to be selected and loaded."
                                  if self.watch_downloads.get() else "Auto-refresh off. Use Refresh to check for ZIPs.")
         self.persist()
 
+    def cancel_auto_zip(self):
+        self.auto_zip_cancel.set()
+        self.auto_zip_generation += 1
+        self.auto_zip_context = None
+        self.zip_tracker.baseline({})
+
+    def toggle_auto_zip(self):
+        self.cancel_auto_zip()
+        if self.auto_load_zips.get():
+            self.watch_downloads.set(True)
+            try:
+                snapshot = {path: fingerprint(path) for path in downloaded_zips(self.downloads_folder)}
+                self.zip_tracker.baseline(snapshot)
+                self.auto_zip_context = (self.downloads_folder, self.source.get())
+                self.download_status.set("Watching for new ZIPs. Existing ZIPs are skipped; new native assets will load for review only.")
+            except (OSError, ValueError) as exc:
+                self.download_status.set(str(exc))
+        else:
+            self.download_status.set("Automatic ZIP loading off. Refresh loads the newest ZIP explicitly.")
+        self.persist()
+
+    def watch_browser_downloads(self, provider):
+        if self.settings_error:
+            messagebox.showerror("Cannot watch Downloads", "Correct the saved settings first.", parent=self.root)
+            return False
+        self.cancel_auto_zip()
+        self.source.set(provider)
+        self.source_choice.set("Downloads")
+        self.refresh()
+        self.auto_load_zips.set(True)
+        self.toggle_auto_zip()
+        return True
+
+    def refresh_action(self):
+        if self.source_choice.get() != "Downloads":
+            self.refresh()
+            return
+        self.cancel_auto_zip()
+        notice = self.refresh_downloads()
+        if notice:
+            self.download_status.set(notice)
+            return False
+        if not self.download_files:
+            self.download_status.set("No ZIP downloads found. Use Folder… to choose a downloads folder.")
+            return False
+        self.download_zip.set(next(iter(self.download_files)))
+        return self.load_download()
+
+    def clean_auto_zip_messages(self):
+        while True:
+            try:
+                context, path, signature, kind, value = self.auto_zip_messages.get_nowait()
+            except queue.Empty:
+                return
+            if kind == "success":
+                discard_extraction(value, self.repo)
+
+    def prepare_auto_zip(self, context, path, signature, cancelled):
+        try:
+            folder = prepare_arrival(path, self.repo, signature, cancelled)
+            self.auto_zip_messages.put((context, path, signature, "success", folder))
+        except ArrivalChanged as exc:
+            self.auto_zip_messages.put((context, path, signature, "changed", str(exc)))
+        except Exception as exc:
+            self.auto_zip_messages.put((context, path, signature, "error", str(exc)))
+        if self.download_watch_closed:
+            self.clean_auto_zip_messages()
+
+    def finish_auto_zip(self):
+        if any(isinstance(widget, tk.Toplevel) for widget in self.root.winfo_children()):
+            return
+        try:
+            context, path, signature, kind, value = self.auto_zip_messages.get_nowait()
+        except queue.Empty:
+            return
+        self.auto_zip_busy = False
+        current = (self.downloads_folder, self.source.get(), self.auto_zip_generation)
+        if (context != current or self.auto_zip_cancel.is_set() or not self.auto_load_zips.get()
+                or self.source_choice.get() != "Downloads"):
+            if kind == "success":
+                discard_extraction(value, self.repo)
+            return
+        if kind == "changed":
+            # The next observation resets stability if the file size/date changed.
+            self.zip_tracker.pending[path] = (signature, time.monotonic())
+            self.download_status.set(str(value))
+            return
+        self.zip_tracker.consume(path, signature)
+        if kind == "error":
+            self.download_status.set(f"Skipped {path.name}: {value}. Use Load ZIP to retry manually.")
+            return
+        previous_zip = self.active_zip
+        previous_selection = self.download_zip.get()
+        try:
+            if fingerprint(path) != signature or has_partial(path):
+                raise ValueError("The ZIP changed after validation. Wait for it to finish and retry.")
+            self.active_zip = str(path.resolve())
+            self.download_zip.set(path.name)
+            self.activate_export_folder(value, self.source.get())
+        except (OSError, ValueError) as exc:
+            self.active_zip = previous_zip
+            self.download_zip.set(previous_selection)
+            discard_extraction(value, self.repo)
+            self.download_status.set(f"Could not load {path.name}: {exc}. The previous component is retained.")
+            return
+        # One arrival replaces the loaded review. Do not cycle through older pending ZIPs.
+        self.zip_tracker.pending = {candidate: value for candidate, value in self.zip_tracker.pending.items()
+                                    if value[0][1] > signature[1]}
+        self.download_status.set(f"Loaded {path.name} automatically for review. Validate and Import explicitly.")
+
+    def consider_auto_zip(self, paths):
+        if self.settings_error:
+            self.download_status.set("Correct saved loader settings before automatically loading ZIPs.")
+            return
+        snapshot = {path: fingerprint(path) for path in paths}
+        context = (self.downloads_folder, self.source.get())
+        if self.auto_zip_context != context:
+            self.zip_tracker.baseline(snapshot)
+            self.auto_zip_context = context
+            return
+        now = time.monotonic()
+        self.zip_tracker.observe(snapshot, now)
+        if self.auto_zip_busy or self.busy:
+            return
+        # Wait while another loader dialog is open, so a settings/update review is not replaced.
+        if any(isinstance(widget, tk.Toplevel) for widget in self.root.winfo_children()):
+            return
+        ready = self.zip_tracker.ready(now)
+        if not ready:
+            return
+        path, signature = ready[0]
+        if has_partial(path):
+            return
+        self.auto_zip_busy = True
+        self.auto_zip_cancel = threading.Event()
+        generation_context = (*context, self.auto_zip_generation)
+        self.download_status.set(f"Validating {path.name} for automatic loading…")
+        threading.Thread(target=self.prepare_auto_zip,
+                         args=(generation_context, path, signature, self.auto_zip_cancel), daemon=False).start()
+
     def schedule_download_watch(self):
         self.download_watch_job = self.root.after(3000, self.poll_downloads)
 
     def download_watch_destroyed(self, event):
-        if event.widget is self.root and self.download_watch_job is not None:
-            self.root.after_cancel(self.download_watch_job)
-            self.download_watch_job = None
+        if event.widget is self.root:
+            self.download_watch_closed = True
+            self.auto_zip_cancel.set()
+            self.clean_auto_zip_messages()
+            if self.download_watch_job is not None:
+                self.root.after_cancel(self.download_watch_job)
+                self.download_watch_job = None
 
     def poll_downloads(self):
         self.download_watch_job = None
         try:
-            if self.source_choice.get() != "Downloads" or not self.watch_downloads.get() or self.busy:
+            self.finish_auto_zip()
+            if self.source_choice.get() != "Downloads" or not self.watch_downloads.get():
                 self.download_watch_snapshot = None
+                self.cancel_auto_zip()
+                return
+            if self.busy:
                 return
             try:
                 paths = downloaded_zips(self.downloads_folder)
@@ -407,10 +580,16 @@ class App:
                 self.download_status.set(
                     f"{len(paths)} ZIP downloads available. List refreshed automatically; select a ZIP to load it. "
                     "A listed ZIP may still be downloading.")
+            if self.auto_load_zips.get():
+                try:
+                    self.consider_auto_zip(paths)
+                except (OSError, ValueError) as exc:
+                    self.download_status.set(f"Automatic ZIP loading unavailable: {exc}")
         finally:
             self.schedule_download_watch()
 
     def select_source_choice(self):
+        self.cancel_auto_zip()
         if self.source_choice.get() in PROVIDERS:
             self.source.set(self.source_choice.get())
         self.refresh()
@@ -453,6 +632,7 @@ class App:
             self.downloads_folder = previous
             messagebox.showerror("Cannot change Downloads folder", str(exc), parent=self.root)
             return
+        self.cancel_auto_zip()
         notice = self.refresh_downloads()
         self.changed()
         self.log_text(notice or f"{len(self.download_files)} ZIP downloads available. Select a ZIP to load it.")
@@ -474,7 +654,52 @@ class App:
 
     def open_search(self):
         symbol = self.inv.symbols.get(self.symbol.get()) if self.inv else None
-        return SearchDialog(self.root, self.source.get(), symbol.mpn if symbol else "", self.use_export_folder, self.open_zip)
+        return SearchDialog(self.root, self.source.get(), symbol.mpn if symbol else "", self.use_export_folder, self.open_zip, self.open_lcsc_download, self.watch_browser_downloads)
+
+    def remember_converter(self, executable, use_external):
+        previous = self.easyeda_executable, self.easyeda_use_external
+        self.easyeda_executable = executable
+        self.easyeda_use_external = use_external
+        try:
+            self.write_preferences(self.settings)
+        except OSError:
+            self.easyeda_executable, self.easyeda_use_external = previous
+            raise
+
+    def open_lcsc_download(self, initial_code=""):
+        if self.settings_error:
+            messagebox.showerror("Cannot download component", "Correct the saved loader settings first.", parent=self.root)
+            return None
+        if self.lcsc_dialog is not None and self.lcsc_dialog.window.winfo_exists():
+            self.lcsc_dialog.window.lift()
+            return self.lcsc_dialog
+        if not initial_code and self.inv and self.symbol.get() in self.inv.symbols:
+            initial_code = prop(self.inv.symbols[self.symbol.get()].node, "LCSC Part") or ""
+        try:
+            initial_code = lcsc_code(initial_code)
+        except ValueError:
+            initial_code = ""
+        self.lcsc_dialog = LcscDownloadDialog(self.root, self.repo, self.easyeda_executable,
+                                              initial_code, self.remember_converter, self.load_lcsc_download,
+                                              use_external=self.easyeda_use_external)
+        return self.lcsc_dialog
+
+    def load_lcsc_download(self, result):
+        self.cancel_auto_zip()
+        if self.settings_error:
+            raise ValueError("Correct the saved loader settings before loading the download.")
+        previous_choice, previous_zip = self.source_choice.get(), self.active_zip
+        self.source_choice.set("LCSC")
+        self.active_zip = ""
+        try:
+            self.activate_export_folder(result.folder, "LCSC")
+        except (OSError, ValueError):
+            self.source_choice.set(previous_choice)
+            self.active_zip = previous_zip
+            raise
+        self.log_text(f"Downloaded {result.lcsc_id} using external easyeda2kicad.\nCache: {result.folder}\n" +
+                      "\n".join(result.notices) +
+                      "\nReview the exact component, package, pin/pad numbering and 3D alignment. Validate the plan, then Import explicitly.")
 
     def open_zip(self, provider=None, archive_path=None):
         source = provider if provider is not None else self.source.get()
@@ -488,6 +713,7 @@ class App:
                                                   filetypes=[("ZIP downloads", "*.zip")])
             if not selected:
                 return False
+            self.cancel_auto_zip()
             extracted = extract_native_zip(selected, self.repo)
             previous_zip, previous_selection = self.active_zip, self.download_zip.get()
             self.active_zip = str(Path(selected).resolve())
@@ -809,6 +1035,7 @@ class App:
         threading.Thread(target=worker, daemon=True).start()
 
     def close(self):
+        self.auto_zip_cancel.set()
         if self.download_watch_job is not None:
             self.root.after_cancel(self.download_watch_job)
             self.download_watch_job = None

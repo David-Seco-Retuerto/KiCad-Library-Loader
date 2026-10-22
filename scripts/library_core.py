@@ -11,7 +11,7 @@ from pathlib import Path
 
 from loader_settings import validate_model_paths, validate_output_layout
 from providers import get_provider
-from import_history import HISTORY_FOLDER, ORIGIN_FILE
+from import_history import HISTORY_FOLDER, ORIGIN_FILE, ACQUISITION_FILE
 from library_layout import DEFAULT_CATEGORIES, LibraryCategory, validate_segment
 
 CATEGORIES = tuple(category.name for category in DEFAULT_CATEGORIES)
@@ -161,7 +161,7 @@ def scan_directory(folder):
     files = sorted(p for p in root.rglob("*") if p.is_file() and p.resolve().is_relative_to(root))
     modern = {p.with_suffix("") for p in files if p.suffix.lower() == ".kicad_sym"}
     for path in files:
-        if path.parent == root and path.name == ORIGIN_FILE:
+        if path.parent == root and path.name in {ORIGIN_FILE, ACQUISITION_FILE}:
             continue
         key = path.relative_to(root).as_posix()
         try:
@@ -211,6 +211,16 @@ def associate_model(inv, symbol, fp):
     if fp:
         refs = [basename(n[1]).casefold() for n in children(read_tree(inv.footprints[fp]), "model")]
     matches = [k for k, p in inv.models.items() if p.name.casefold() in refs]
+    if len(matches) > 1:
+        return ""
+    if not matches:
+        # A WRL reference may have one STEP counterpart with the same basename.
+        # Preserve ambiguity instead of selecting an unrelated same-named model.
+        step_refs = {str(Path(reference).with_suffix("")).casefold() for reference in refs
+                     if Path(reference).suffix.lower() == ".wrl"}
+        matches = [k for k, p in inv.models.items() if p.stem.casefold() in step_refs]
+        if len(matches) > 1:
+            return ""
     if not matches:
         matches = [k for k, p in inv.models.items() if p.stem.casefold() in {symbol.name.casefold(), symbol.mpn.casefold()}]
     return matches[0] if len(matches) == 1 else ""

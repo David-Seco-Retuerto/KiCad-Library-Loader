@@ -7,7 +7,7 @@ from providers import PROVIDERS, get_provider
 
 
 class SearchDialog:
-    def __init__(self, parent, provider, initial_query, use_export_folder, open_zip):
+    def __init__(self, parent, provider, initial_query, use_export_folder, open_zip, download_lcsc=None, watch_downloads=None):
         self.window = tk.Toplevel(parent)
         self.window.title("Search for component models")
         self.window.transient(parent)
@@ -18,6 +18,8 @@ class SearchDialog:
         self.status = tk.StringVar(value="Search opens your default browser.")
         self.use_export_folder = use_export_folder
         self.open_zip = open_zip
+        self.download_lcsc = download_lcsc
+        self.watch_downloads = watch_downloads
         frame = ttk.Frame(self.window, padding=18)
         frame.pack(fill="both", expand=True)
         frame.columnconfigure(1, weight=1)
@@ -45,6 +47,13 @@ class SearchDialog:
         ttk.Button(buttons, text="Open search in browser", command=self.open_search).pack(side="left", padx=5)
         ttk.Button(buttons, text="Open ZIP…", command=self.choose_zip).pack(side="left", padx=5)
         ttk.Button(buttons, text="Use export folder…", command=self.choose_folder).pack(side="left", padx=5)
+        self.download_button = None
+        if download_lcsc is not None:
+            self.download_button = ttk.Button(buttons, text="Download LCSC…", command=lambda: self.download_lcsc(self.query.get()))
+            self.download_button.pack(side="left", padx=5)
+        if watch_downloads is not None:
+            ttk.Button(frame, text="Watch Downloads for new ZIPs", command=self.watch_new_downloads).grid(
+                row=8, column=0, columnspan=2, sticky="e", pady=(10, 0))
         ttk.Button(buttons, text="Close", command=self.window.destroy).pack(side="left", padx=5)
         self.query.trace_add("write", lambda *_: self.update_url())
         self.provider.trace_add("write", lambda *_: self.update_url())
@@ -54,6 +63,8 @@ class SearchDialog:
         entry.focus_set()
 
     def update_url(self):
+        if self.download_button is not None:
+            self.download_button.configure(state="normal" if self.provider.get() == "LCSC" else "disabled")
         try:
             self.url.set(get_provider(self.provider.get()).search_url(self.query.get()))
         except ValueError:
@@ -77,4 +88,8 @@ class SearchDialog:
 
     def choose_zip(self):
         if self.open_zip(self.provider.get()):
+            self.window.destroy()
+
+    def watch_new_downloads(self):
+        if self.watch_downloads is not None and self.watch_downloads(self.provider.get()):
             self.window.destroy()

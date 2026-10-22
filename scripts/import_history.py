@@ -2,12 +2,14 @@
 from datetime import datetime, timezone
 import hashlib
 import json
+import re
 from pathlib import Path
 import uuid
 
 HISTORY_FOLDER = ".kicad-loader-history"
 BACKUP_FOLDER = ".kicad-loader-backups"
 ORIGIN_FILE = ".loader-archive-origin.json"
+ACQUISITION_FILE = ".loader-acquisition.json"
 
 
 def file_hash(path):
@@ -40,6 +42,28 @@ def add_backup_files(plan):
     plan.history["backup_folder"] = folder.relative_to(root).as_posix()
 
 
+def read_acquisition(folder):
+    path = Path(folder) / ACQUISITION_FILE
+    try:
+        if not path.is_file() or path.is_symlink() or path.stat().st_size > 1024 * 1024:
+            return None
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if (not isinstance(data, dict) or data.get("schema_version") != 1 or data.get("provider") != "LCSC"
+                or data.get("method") != "easyeda2kicad"
+                or not isinstance(data.get("lcsc_id"), str) or not re.fullmatch(r"C[1-9][0-9]{0,11}", data["lcsc_id"])
+                or not all(isinstance(data.get(key), str) for key in ("tool_version", "retrieved_at_utc"))
+                or not isinstance(data.get("files"), list)):
+            return None
+        files = []
+        for item in data["files"]:
+            if not isinstance(item, dict) or not all(isinstance(item.get(key), str) for key in ("relative_path", "sha256")):
+                return None
+            files.append({"relative_path": item["relative_path"], "sha256": item["sha256"]})
+        return {key: data[key] for key in ("schema_version", "provider", "method", "lcsc_id", "tool_version", "retrieved_at_utc")} | {"files": files}
+    except (OSError, ValueError):
+        return None
+
+
 def add_history_record(plan):
     if plan.history is None:
         return None
@@ -58,6 +82,8 @@ def add_history_record(plan):
         record["outputs"].append({"role": role, "relative_path": path.relative_to(root).as_posix(),
                                   "action": action, "sha256": hashlib.sha256(data).hexdigest(),
                                   "previous_sha256": hashlib.sha256(before).hexdigest() if before is not None else None})
+    record["source_acquisition"] = (record.get("source_acquisition") if record.get("operation") == "restore"
+                                    else read_acquisition(record["input_root"]))
     origin = Path(record["input_root"]) / ORIGIN_FILE
     record["source_archive"] = record.get("source_archive") if record.get("operation") == "restore" else None
     if record.get("operation") != "restore" and origin.is_file():
@@ -105,6 +131,9 @@ def read_history(output_root):
 
 
 def describe_record(record):
+    acquisition = record.get("source_acquisition")
+    acquisition_text = (f"LCSC {acquisition.get('lcsc_id', '')} via easyeda2kicad {acquisition.get('tool_version', 'unknown')}"
+                        if isinstance(acquisition, dict) else "Not recorded")
     archive = record.get("source_archive")
     archive_path = archive.get("archive_path") if isinstance(archive, dict) else None
     lines = [f"Component: {record['symbol']}", f"MPN: {record.get('mpn', '')}",
@@ -116,6 +145,7 @@ def describe_record(record):
              f"Category: {record['category']} | Library: {record['library_name']}",
              f"Symbol format: {record['symbol_format']} | Naming: {record.get('naming_mode', '')}",
              f"Provider: {record.get('provider') or 'Local export'}",
+             f"Online acquisition: {acquisition_text}",
              f"Input folder: {record.get('input_root', '')}",
              f"Original ZIP: {archive_path or 'Not recorded (folder input or older ZIP cache)'}",
              f"Output root: {record.get('output_root', '')}", "", "Files at import time:"]

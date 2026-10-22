@@ -12,7 +12,8 @@ The loader has been extracted from the library repository into an independent ap
 - Persistent local preferences and a non-overwriting settings migration utility.
 - Browser search for SamacSys / Component Search Engine and LCSC, explicit export-folder selection and new-asset notices on refresh.
 - Open ZIP for native KiCad downloads, selective extraction into an ignored persistent cache, and review/import through either output format.
-- Downloads source with an in-app ZIP list, configurable remembered folder, manual refresh and optional passive auto-refresh.
+- Downloads source with a newest-first ZIP list, main Refresh loading the newest ZIP, optional passive auto-refresh and session-only automatic loading of stable new native ZIP arrivals.
+- Explicit single-code LCSC download through the easyeda2kicad dependency installed with the loader, with cancellable background work, isolated native cache, review handoff and acquisition provenance.
 - Concise asset labels, with disambiguation for duplicate names and unchanged internal file identities.
 - Read-only KiCad setup diagnostics: global/project/linked tables, nicknames, paths, footprint references and model variables/files.
 - Import history browser with transactional per-import records, output hashes, file action classification and original ZIP provenance for new extractions.
@@ -26,7 +27,9 @@ The loader has been extracted from the library repository into an independent ap
 - `scripts/library_layout.py`, `loader_settings.py`: categories, paths and validation.
 - `scripts/providers.py`: local provider contract and encoded browser search URLs.
 - `scripts/search_dialog.py`: browser search and download-folder handoff.
+- `scripts/lcsc_download.py`, `lcsc_dialog.py`: external single-code acquisition, bounded cache handling and responsive download/review handoff.
 - `scripts/input_choices.py`: asset display labels and shallow date-ordered download listing.
+- `scripts/download_watch.py`: session arrival tracking and stable/hash-checked native ZIP preparation.
 - `scripts/archive_import.py`: bounded native ZIP extraction and managed cache cleanup on failure.
 - `scripts/step_preview.py`: OpenCascade tessellation and preview support.
 - `scripts/kicad_diagnostics.py`, `diagnostics_dialog.py`: saved KiCad configuration and asset reference reports.
@@ -40,9 +43,9 @@ The loader has been extracted from the library repository into an independent ap
 
 1. Complete a documented manual schematic/PCB/3D workflow check, including reviewed updates and restoration. Native directory loading passed KiCad 10.0.7 CLI verification; packed output separately passed KiCad 9.0.7. Continue real-world validation with SamacSys.
 2. Prepare a public alpha: choose an application licence, versioning and packaging, and document the supported import/update/restore scope. Managed category migration, removal and broader recovery remain separate lifecycle work.
-3. **Direct online component downloads:** investigate a supported SamacSys interface, authentication, access and terms; then add explicit manufacturer/package/variant selection, download progress/cancellation, safe local cache extraction and provenance. Route downloaded symbols, footprints and STEP models through existing review/validation; never import silently. Provider access/API feasibility is not assumed.
+3. **Direct online component downloads:** public-source SamacSys feasibility review is documented in [docs/SAMACSYS_INTEGRATION.md](docs/SAMACSYS_INTEGRATION.md). Next obtain confirmation of a supported interface, authentication, access and integration terms; then add explicit manufacturer/package/variant selection, download progress/cancellation, safe local cache extraction and provenance. Route downloaded symbols, footprints and STEP models through existing review/validation; never import silently. Provider access/API feasibility is not assumed.
 4. **Keep manual Search online permanently**, even after direct downloads, to browse and choose other packages/variants. The current preferred SamacSys portal and Downloads handoff remain available. Manually check authenticated browser/download behaviour.
-5. Extend online acquisition to other providers where supported. Real LCSC exports, EasyEDA download/conversion and account/API requirements remain deferred and require separate validation.
+5. Broaden the initial explicit LCSC/easyeda2kicad acquisition with more real-part coverage, provider-access clarification and eventual in-app result/package selection. The converter is a pinned loader dependency, with an advanced external override; its web interface is not claimed to be an official supported standalone API. Other providers remain future work.
 6. Evaluate KiCad plugin integration using the same core workflows; retain the standalone application.
 
 KiCad 9 can validate packed symbols and individual unpacked symbol files, but cannot establish native KiCad 10 directory compatibility. Tests do not replace component datasheet checks. Multi-file imports use rollback for I/O failures but are not crash-atomic.
@@ -115,3 +118,38 @@ Successful imports now commit a new local metadata record alongside their assets
 - Direct online CAD acquisition is explicitly listed above, starting with SamacSys feasibility and retaining manual Search online permanently.
 - 180 regression tests ran: 179 passed, one existing Windows symlink-privilege skip. Sixteen new restoration tests cover exact recovery in both formats, packed appends/manual changes, backup integrity and races, sharing, source-independent provenance, I/O rollback and explicit GUI confirmation/re-review.
 - Real NUP2105LT1G verification used only a temporary extracted source and separate temporary output roots: import, simulated update and restore returned all asset bytes exactly; linked history, KiCad 9.0.7 packed and KiCad 10.0.7 native-directory symbol/footprint SVG loading, and STEP tessellation passed. The original ZIP hash was unchanged. Production libraries and Git were not modified.
+
+## SamacSys acquisition feasibility — 2026-10-22
+
+- Reviewed official Component Search Engine/Mouser portal documentation, published service terms, Supplyframe's SamacSys page and historical API/integration announcement. Findings and source links are in [docs/SAMACSYS_INTEGRATION.md](docs/SAMACSYS_INTEGRATION.md).
+- No self-service native CAD-download API contract was located in the inspected public sources. This does not establish that no API exists. A normal account and free browser downloads do not by themselves establish API access.
+- Published Component Search Engine terms contain automation restrictions. Next confirm a supported integration and applicable permission with SamacSys/Supplyframe; the report lists the concrete questions and official contact route. No enquiry was sent.
+- Direct acquisition remains a planned feature. No network client, speculative endpoints, account handling or placeholder download controls were added. Browser search and explicit ZIP intake remain operational and are retained in the future design.
+- Documentation-only change; no new code tests were needed. The preceding 180-test result applies to the unchanged application code. No vendor assets, credentials, personal paths, Git operations or production-library writes were involved in this review.
+
+## First LCSC acquisition integration — 2026-10-22
+
+- Download LCSC accepts one exact C-number and invokes a separately installed easyeda2kicad executable without a shell/overwrite flag, in a unique ignored cache. Executable configuration is local; no personal path is a source-code default and no new package dependency is bundled.
+- Background work uses a queue to update Tk only on its main thread, with cancellation/timeout/process termination and application-close cancellation. Failed runs or failed input handoffs preserve the preceding settings/review; successful runs load native assets but never import automatically.
+- Native symbol/footprint parsing and an exact generated LCSC Part field are required. Missing STEP is reported. A WRL reference can associate a unique STEP basename while ambiguous matches remain empty for review; transforms are preserved and must be checked.
+- Local acquisition metadata records C-number, reported converter version, retrieval time and generated-file hashes; new history records include it separately from ZIP origin, and restoration preserves prior provenance.
+- Browser search remains available permanently. This first integration provides no in-app online result catalog, bulk requests, automatic login or SamacSys downloader. The external tool's provider access and licensing remain distinct from native import support.
+- Live C2040 (RP2040) download was exercised through the new Tk dialog using the separately installed easyeda2kicad 1.0.1. Symbol/footprint/STEP selections were automatic, no import occurred on download, and subsequent temporary imports retained acquisition history. KiCad 9.0.7 packed and KiCad 10.0.7 native symdir/footprint SVG loading passed; STEP tessellation produced 8,460 triangles. App preferences and production libraries were unchanged.
+- Final regression suite: 198 tests, 197 passed and the existing Windows symlink-privilege test skipped. Eighteen new synthetic tests cover validation, external CLI arguments, cache/provenance, process failures, cancellation/timeout, native-output identity, size limits, WRL/STEP ambiguity and GUI handoff/persistence failures. A progress animation callback leak found during closure checks was removed; progress now uses the existing cancelled-on-close Tk polling callback. No Git operations were performed.
+
+## Automatic local ZIP intake and newest Refresh — 2026-10-22
+
+- Main Refresh in Downloads explicitly loads the newest ZIP by modification time, retaining the preceding component/review on load failure. Passive list refresh and internal rescans remain non-loading.
+- Auto-load new ZIPs is opt-in per session, enabling list polling and baselining existing files. New/replaced ZIPs wait six stable seconds, known partial sidecars and native ZIP validation; before/after hash/stat checks reject changing input. Extraction runs off the Tk thread and retains original archives/provenance.
+- Search online offers Watch Downloads for new ZIPs. The browser performs the website search/download; this adds no SamacSys HTTP client or login handling. Imported library writes still require explicit validation and Import.
+- Mode/folder/manual-load changes reset pending arrivals; inactive or closed contexts discard in-flight extraction. Loader dialogs defer automatic handoff. Invalid ZIPs or preference errors report a status and preserve the preceding review without repeated modal dialogs. Automatic intake has a 250 MB archive-size cap; existing extraction limits still apply.
+- Validation: 210 regression tests ran, 209 passed and the existing Windows symlink-privilege test was skipped. Twelve new tests cover newest Refresh and failure preservation, arrival baselines/stability/replacements, partial sidecars, changing archives, invalid ZIP rejection, session-only arming and GUI deferral/cancellation.
+- A real NUP2105LT1G SamacSys ZIP was copied into a temporary browser-download folder after arming the GUI watcher. It loaded symbol/footprint/STEP automatically for review without writing a library. The original ZIP hash, production libraries and app preferences were unchanged; all test cache/settings/output paths were temporary.
+
+## Loader-managed easyeda2kicad dependency — 2026-10-22
+
+- Added easyeda2kicad 1.0.1 to requirements and installed it into this application's own virtual environment. pip check reports no broken requirements. The separate test venv remains unchanged and is no longer needed for normal use.
+- Download LCSC resolves only the running Python environment's scripts directory by default; it does not pick a different PATH tool. The dialog now starts with the C-number field and hides executable selection behind an explicit advanced external-converter option. Old saved paths alone do not enable that override.
+- Retained subprocess cancellation/cache/review behaviour. Mode and override path are saved locally; missing dependencies explain how to update the loader environment.
+- Added converter attribution and the unmodified AGPL licence text shipped by the installed release. This is not completion of the full release/installer licence inventory or source-delivery requirements.
+- Validation: 214 regression tests, 213 passed and one existing Windows symlink-privilege skip. Four added tests cover own-environment resolution, ignoring legacy saved external paths by default, setup errors without launch and explicit override persistence. A live GUI C2040 download passed with no executable selection and no external venv, auto-selecting symbol/footprint/STEP into a temporary cache without importing. Production libraries and user preferences were unchanged; no Git operations were performed.
