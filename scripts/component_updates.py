@@ -129,6 +129,18 @@ def build_update_plan(workspace, inv, symbol_key, fp_key, model_key, category, m
         else:
             plan.info.append(f"Keep unchanged {role}: {path.relative_to(root)}")
 
+    changed_assets = {path for path, (role, data) in desired.items()
+                      if role in {"footprint", "model"} and data != snapshots[path]}
+    verify_replacement_dependencies(plan, records, old, previous, changed_assets,
+                                    symbol.name, layout.library_name, model_variable)
+    return plan
+
+
+def verify_replacement_dependencies(plan, records, old, previous, changed_assets,
+                                    symbol_name, library_name, model_variable):
+    """Snapshot history and local references before any tracked asset replacement."""
+    root = plan.output_root
+
     def watch_directory(folder):
         check_destination(folder, root, plan.protected_roots)
         plan.dependency_directories[folder] = tuple(sorted(item.name for item in folder.iterdir())) if folder.is_dir() else None
@@ -137,7 +149,7 @@ def build_update_plan(workspace, inv, symbol_key, fp_key, model_key, category, m
         check_destination(path, root, plan.protected_roots)
         data = path.read_bytes()
         if path in plan.before and plan.before[path] != data:
-            raise ImportErrorDetail("A dependency changed during the update check. Reopen the review.")
+            raise ImportErrorDetail("A dependency changed during the replacement check. Reopen the review.")
         plan.before[path] = data
         return parse(data.decode("utf-8-sig"))
 
@@ -147,15 +159,14 @@ def build_update_plan(workspace, inv, symbol_key, fp_key, model_key, category, m
         check_destination(path, root, plan.protected_roots)
         data = path.read_bytes()
         if json.loads(data.decode("utf-8")) != {key: value for key, value in record.items() if key != "record_path"}:
-            raise ImportErrorDetail("History changed during the update check. Reopen the review.")
+            raise ImportErrorDetail("History changed during the replacement check. Reopen the review.")
         plan.before[path] = data
-    changed_assets = {path for path, (role, data) in desired.items() if role in {"footprint", "model"} and data != snapshots[path]}
     identity = (previous["symbol"].casefold(), previous["library_name"], previous["symbol_format"])
     for record in records:
         if (record["symbol"].casefold(), record["library_name"], record["symbol_format"]) != identity:
             for output in record["outputs"]:
                 if recorded_path(root, output["relative_path"]) in changed_assets:
-                    raise ImportErrorDetail("A changed footprint or model is recorded for another component or symbol format. Shared assets cannot be updated in place.")
+                    raise ImportErrorDetail("A changed footprint or model is recorded for another component or symbol format. Shared assets cannot be replaced in place.")
     if changed_assets:
         symbol_root, footprint_root = root / "Symbols", root / "Footprints"
         watch_directory(symbol_root)
@@ -165,16 +176,16 @@ def build_update_plan(workspace, inv, symbol_key, fp_key, model_key, category, m
             watch_directory(folder)
             symbol_paths.extend(folder.glob("*.kicad_sym"))
         if "footprint" in old:
-            reference = f"{layout.library_name}:{old['footprint'][0].stem}"
+            reference = f"{library_name}:{old['footprint'][0].stem}"
             for path in symbol_paths:
                 tree = inspect(path)
                 if tree[0] != "kicad_symbol_lib":
                     raise ImportErrorDetail(f"Cannot verify symbol dependencies in {path}")
                 for node in children(tree, "symbol"):
-                    if path == old["symbol"][0] and str(node[1]) == symbol.name:
+                    if path == old["symbol"][0] and str(node[1]) == symbol_name:
                         continue
                     if prop(node, "Footprint") == reference:
-                        raise ImportErrorDetail(f"Another symbol references this footprint: {node[1]} in {path}. Shared updates are blocked.")
+                        raise ImportErrorDetail(f"Another symbol references this footprint: {node[1]} in {path}. Shared replacements are blocked.")
         for folder in footprint_root.glob("*.pretty"):
             watch_directory(folder)
             for path in folder.glob("*.kicad_mod"):
@@ -188,7 +199,7 @@ def build_update_plan(workspace, inv, symbol_key, fp_key, model_key, category, m
                     target = Path(value)
                     if ((target.is_absolute() and target.resolve() == old["model"][0].resolve())
                             or Path(value.replace("\\", "/")).name == old["model"][0].name):
-                        raise ImportErrorDetail(f"Another footprint may reference this model: {path}. Shared model updates are blocked.")
+                        raise ImportErrorDetail(f"Another footprint may reference this model: {path}. Shared model replacements are blocked.")
     return plan
 
 

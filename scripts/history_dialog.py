@@ -1,13 +1,18 @@
 """Browse immutable import records for the selected output library root."""
 import tkinter as tk
-from tkinter import ttk
+from tkinter import messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 
 from import_history import describe_record, read_history
+from component_restore import build_restore_plan
+from update_dialog import UpdateDialog
 
 
 class HistoryDialog:
-    def __init__(self, parent, output_root):
+    def __init__(self, parent, output_root, applied=None, protected_roots=(), model_variable="DVL_LIB_ROOT"):
+        self.applied = applied
+        self.protected_roots = protected_roots
+        self.model_variable = model_variable
         self.output_root = output_root
         self.records = []
         self.visible = {}
@@ -41,6 +46,8 @@ class HistoryDialog:
         ttk.Label(frame, textvariable=self.status, wraplength=980).grid(row=5, column=0, sticky="w", pady=8)
         buttons = ttk.Frame(frame)
         buttons.grid(row=6, column=0, sticky="e")
+        self.restore_button = ttk.Button(buttons, text="Restore…", command=self.restore_selected, state="disabled")
+        self.restore_button.pack(side="left", padx=8)
         ttk.Button(buttons, text="Copy details", command=self.copy_details).pack(side="left", padx=8)
         ttk.Button(buttons, text="Close", command=self.window.destroy).pack(side="left")
         self.table.bind("<<TreeviewSelect>>", lambda _: self.show_selected())
@@ -50,7 +57,7 @@ class HistoryDialog:
     def reload(self):
         try:
             self.records, notices = read_history(self.output_root)
-            self.status.set(f"{len(self.records)} import record(s). " + (" ".join(notices) if notices else "Earlier imports are not reconstructed automatically. History does not delete or undo components."))
+            self.status.set(f"{len(self.records)} import record(s). " + (" ".join(notices) if notices else "Select an update and choose Restore… to review reverting it. Initial imports cannot be undone here."))
         except OSError as exc:
             self.records = []
             self.status.set(f"History could not be read: {exc}")
@@ -74,6 +81,7 @@ class HistoryDialog:
     def show_selected(self):
         selected = self.table.selection()
         record = self.visible.get(selected[0]) if selected else None
+        self.restore_button.configure(state="normal" if record and record.get("operation") == "update" else "disabled")
         text = describe_record(record) if record else "No matching import records. New successful imports will appear here."
         self.details.configure(state="normal")
         self.details.delete("1.0", "end")
@@ -83,3 +91,24 @@ class HistoryDialog:
     def copy_details(self):
         self.window.clipboard_clear()
         self.window.clipboard_append(self.details.get("1.0", "end-1c"))
+
+    def restore_selected(self):
+        selected = self.table.selection()
+        record = self.visible.get(selected[0]) if selected else None
+        if not record or record.get("operation") != "update":
+            return None
+        event_id = record["event_id"]
+
+        def rebuild():
+            return build_restore_plan(self.output_root, event_id, self.protected_roots, self.model_variable)
+
+        def applied(plan):
+            self.reload()
+            if self.applied:
+                self.applied(plan)
+
+        try:
+            return UpdateDialog(self.window, rebuild(), rebuild, applied)
+        except (OSError, ValueError, KeyError, IndexError, TypeError) as exc:
+            messagebox.showerror("Cannot restore component", str(exc), parent=self.window)
+            return None

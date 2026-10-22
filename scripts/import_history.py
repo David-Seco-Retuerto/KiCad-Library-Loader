@@ -24,7 +24,7 @@ def add_backup_files(plan):
     root = Path(plan.output_root).resolve()
     folder = root / BACKUP_FOLDER / uuid.uuid4().hex
     backup_paths = []
-    manifest = {"schema_version": 1, "operation": "update", "previous_event_id": plan.history.get("previous_event_id"), "files": []}
+    manifest = {"schema_version": 1, "operation": plan.history.get("operation", "update"), "previous_event_id": plan.history.get("previous_event_id"), "files": []}
     for path, data in plan.backup_files.items():
         relative = path.relative_to(root)
         destination = folder / relative
@@ -59,8 +59,8 @@ def add_history_record(plan):
                                   "action": action, "sha256": hashlib.sha256(data).hexdigest(),
                                   "previous_sha256": hashlib.sha256(before).hexdigest() if before is not None else None})
     origin = Path(record["input_root"]) / ORIGIN_FILE
-    record["source_archive"] = None
-    if origin.is_file():
+    record["source_archive"] = record.get("source_archive") if record.get("operation") == "restore" else None
+    if record.get("operation") != "restore" and origin.is_file():
         try:
             metadata = json.loads(origin.read_text(encoding="utf-8"))
             if isinstance(metadata, dict) and isinstance(metadata.get("archive_path"), str) and isinstance(metadata.get("archive_sha256"), str):
@@ -110,6 +110,8 @@ def describe_record(record):
     lines = [f"Component: {record['symbol']}", f"MPN: {record.get('mpn', '')}",
              f"Imported (UTC): {record['imported_at_utc']}",
              f"Operation: {record.get('operation', 'import')}",
+             f"Reverted update: {record.get('reverted_event_id') or 'Not applicable'}",
+             f"Restored version: {record.get('restored_from_event_id') or 'Not applicable'}",
              f"Backup folder: {record.get('backup_folder') or 'Not applicable'}",
              f"Category: {record['category']} | Library: {record['library_name']}",
              f"Symbol format: {record['symbol_format']} | Naming: {record.get('naming_mode', '')}",

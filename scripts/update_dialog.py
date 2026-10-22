@@ -28,7 +28,7 @@ def describe_changes(plan):
             if len(diff) > 600:
                 lines.append(f"[Diff preview truncated: {len(diff) - 600} more lines]")
         else:
-            lines.append("STEP contents differ. Inspect the incoming model in the main window and check its alignment.")
+            lines.append("STEP contents differ. Use the STEP previews and check alignment in KiCad.")
     return "\n".join(lines)
 
 
@@ -36,7 +36,9 @@ class UpdateDialog:
     def __init__(self, parent, plan, rebuild, applied):
         self.plan, self.rebuild, self.applied = plan, rebuild, applied
         self.window = tk.Toplevel(parent)
-        self.window.title("Review component update")
+        self.restoring = plan.history.get("operation") == "restore"
+        title = "Review component restoration" if self.restoring else "Review component update"
+        self.window.title(title)
         self.window.transient(parent)
         self.window.geometry("1080x760")
         self.window.minsize(780, 540)
@@ -44,7 +46,7 @@ class UpdateDialog:
         frame.pack(fill="both", expand=True)
         frame.columnconfigure(0, weight=1)
         frame.rowconfigure(2, weight=1)
-        ttk.Label(frame, text="Review component update", font=("Segoe UI", 15, "bold")).grid(row=0, column=0, sticky="w")
+        ttk.Label(frame, text=title, font=("Segoe UI", 15, "bold")).grid(row=0, column=0, sticky="w")
         ttk.Label(frame, text="Existing names are retained. Changed files will be backed up before replacement. Shared assets and manual edits are blocked. STEP previews show the raw models without footprint transforms.",
                   wraplength=1000).grid(row=1, column=0, sticky="w", pady=10)
         self.report = ScrolledText(frame, wrap="word", font=("Consolas", 10), state="disabled")
@@ -55,11 +57,14 @@ class UpdateDialog:
         buttons.grid(row=4, column=0, sticky="e")
         existing_model = next((path for path, role in plan.assets.items() if role == "model"), None)
         incoming_model = plan.history.get("source_files", {}).get("model")
+        if self.restoring and existing_model:
+            incoming_model = (plan.output_root / plan.history["restore_backup_folder"] / existing_model.relative_to(plan.output_root)
+                              if existing_model in plan.files else existing_model)
         if existing_model and incoming_model:
             ttk.Button(buttons, text="Existing STEP…", command=lambda: self.preview_model(existing_model)).pack(side="left", padx=5)
-            ttk.Button(buttons, text="Incoming STEP…", command=lambda: self.preview_model(Path(incoming_model))).pack(side="left", padx=5)
+            ttk.Button(buttons, text="Restored STEP…" if self.restoring else "Incoming STEP…", command=lambda: self.preview_model(Path(incoming_model))).pack(side="left", padx=5)
         ttk.Button(buttons, text="Cancel", command=self.window.destroy).pack(side="left", padx=8)
-        self.apply_button = ttk.Button(buttons, text="Back up and apply update", command=self.apply, state="disabled")
+        self.apply_button = ttk.Button(buttons, text="Back up and restore" if self.restoring else "Back up and apply update", command=self.apply, state="disabled")
         self.apply_button.pack(side="left")
         self.reviewed.trace_add("write", lambda *_: self.apply_button.configure(state="normal" if self.reviewed.get() else "disabled"))
         self.render()
@@ -90,7 +95,7 @@ class UpdateDialog:
             commit_plan(latest.output_root, latest)
         except (OSError, ValueError, KeyError, IndexError) as exc:
             self.reviewed.set(False)
-            messagebox.showerror("Update blocked", str(exc), parent=self.window)
+            messagebox.showerror("Restore blocked" if self.restoring else "Update blocked", str(exc), parent=self.window)
             return False
         self.applied(latest)
         self.window.destroy()

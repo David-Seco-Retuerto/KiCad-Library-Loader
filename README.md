@@ -293,7 +293,22 @@ Applying rechecks the incoming files, destination snapshots, history and depende
 
 Backups of every changed destination file are written first to `<output-root>/.kicad-loader-backups/<update-id>/`, retaining their paths relative to the output root. A manifest contains the original hashes. A packed symbol backup contains the complete preceding library. Backups, replacements and the new history event participate in the existing rollback mechanism: an I/O failure restores the previous assets and removes newly written transaction files. A power-loss crash is still not atomic across files.
 
-The new history event links to the previous import/update and records its backup folder. Backups persist after success and are excluded by this application's and the original library workspace's ignore rules; configure other output repositories yourself. They contain vendor library data. There is no automatic backup cleanup or restore button yet. Manual restoration requires reviewing later imports first, especially when restoring a whole packed library. Existing schematic/PCB instances must be reviewed and updated through KiCad separately.
+The new history event links to the previous import/update and records its backup folder. Backups persist after success and are excluded by this application's and the original library workspace's ignore rules; configure other output repositories yourself. They contain vendor library data. Use the reviewed restoration workflow below to revert the latest component update. There is no automatic backup cleanup. Do not replace a whole packed library from a backup without accounting for later imports. Existing schematic/PCB instances must be reviewed and updated through KiCad separately.
+
+## Restoring the previous component version
+
+1. Open **Import history…** and select the update you want to revert.
+2. Click **Restore…**. Only the latest recorded operation for that component may be an update to restore; initial imports, an already restored update and older superseded updates are blocked.
+3. Review the file diffs, model hashes and warnings. **Existing STEP…** and **Restored STEP…** preview raw models without footprint transforms. The restored model is read from its verified backup, so the original download is not required.
+4. Tick the review checkbox, then **Back up and restore**. Opening or cancelling the review does not change assets, history or backups.
+
+Restoration verifies the selected update, previous version, backup manifest and file hashes. Manual edits, missing files, modified backups, ambiguous history or shared changed footprints/models block the operation. It keeps the same asset set, names, locations and symbol format. Checks use history and references under the selected output root; they do not inspect external libraries/projects or already placed instances.
+
+For packed `.kicad_sym` libraries, only the selected symbol definition is restored into the current library. Other symbols, including ones appended after the update, are preserved. The entire current library must match its latest recorded file hash and the selected symbol must match its fingerprint. Older insufficient history is blocked rather than guessed. Unpacked `.kicad_symdir` output restores the tracked symbol file.
+
+Applying rebuilds the plan and clears confirmation if the reviewed state changes. File snapshots, backup data, history and dependency folders are checked again under the output lock. Current changed files are backed up before restoration, and a new `restore` history event links the reverted update and restored version. Original history and backups remain available; restoring does not delete any component. An I/O failure rolls back the transaction; an abrupt power loss is not atomic across files. Empty transaction folders may remain after a failed write.
+
+This first workflow does not offer redo, multiple-step undo, removal, category migration or format conversion. After a restore, a new **Review update…** can update the component again using a selected export. Library restoration does not change already placed schematic or PCB instances; review and update those separately in KiCad.
 
 ## Import history
 
@@ -307,7 +322,7 @@ A history record is included in the same application write plan and lock as its 
 
 New **Open ZIP…** extractions retain a local `.loader-archive-origin.json` with the original archive path and SHA-256. Imports from those caches include that provenance in the history. Folder inputs and older caches without this metadata report the original ZIP as unknown. The archive does not need to remain available to browse the record. The GUI also records the chosen provider and input mode; direct core imports retain the source file/folder information without assuming a provider.
 
-History is an import-time snapshot. Files may subsequently be changed, moved, deleted or extended by later packed imports; viewing a record does not verify their current state. Reviewed in-place updates are now available as described above. Component removal, automatic undo/restore, unattended updates and category migration are not implemented.
+History is an import-time snapshot. Files may subsequently be changed, moved, deleted or extended by later packed imports; viewing a record does not verify their current state. Reviewed in-place updates are now available as described above. Reviewed restoration of the latest component update is available below. Component removal, undoing initial imports, unattended updates and category migration are not implemented.
 
 History is local and excluded by the application's ignore rules and the original library workspace's ignore rules. If you choose another output Git repository, add `.kicad-loader-history/` to its ignore rules if desired; the application does not edit arbitrary repositories. Its records can contain personal source paths. Do not assume it is a transferable package or a backup of your library.
 
@@ -415,3 +430,14 @@ KiCad setup diagnostics tests cover matching and mismatched nicknames/paths, sav
 History regressions cover import-time destination hashes, created/updated/reused classifications, packed append history, symbol-only records, rollback after metadata write failures, retry without duplicate events, ZIP provenance, older caches, corrupt records and the read-only filtered history browser.
 
 Update regressions cover both symbol formats, exact backups, packed sibling preservation, manual edits, fresh MPN identity, older history limits, recorded/untracked shared assets, other-format sharing, changed dependencies after review, write-failure rollback, stable names/absolute paths and explicit GUI confirmation with re-review on changes.
+
+## Roadmap: direct online acquisition
+
+Direct downloading of component CAD assets is a planned feature, separate from the existing browser search and passive Downloads list. The intended flow is: search by MPN, choose the exact manufacturer/package/variant, download the available native symbol/footprint/STEP assets into the local cache, then review and explicitly import them through the existing validation pipeline.
+
+- Start by investigating a supported SamacSys integration, including available provider interfaces, authentication, access and redistribution conditions. API availability or download permission is not assumed.
+- Add explicit download progress, cancellation, partial-download handling, archive validation and provenance. Downloads must never import silently or include provider assets in this source repository.
+- Extend to other providers where supported; LCSC/EasyEDA access, conversion and real-export validation remain separate work.
+- Keep **Search online…** permanently, including after direct downloads are implemented, so users can browse alternative packages and variants manually. A supported browser/download handoff remains useful where a provider has no suitable integration.
+
+Direct acquisition and provider feasibility are explicit milestones alongside release preparation. A future KiCad plugin can expose the same importer and acquisition workflow; it does not replace the standalone application.
