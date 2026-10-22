@@ -191,6 +191,10 @@ class App:
         self.active_zip = saved_zip if isinstance(saved_zip, str) else ""
         self.download_zip = tk.StringVar()
         self.download_files = {}
+        self.watch_downloads = tk.BooleanVar(value=self.prefs.get("watch_downloads") is True)
+        self.download_status = tk.StringVar()
+        self.download_watch_job = None
+        self.download_watch_snapshot = None
         saved_category = self.prefs.get("category")
         self.category = tk.StringVar(value=saved_category if self.settings.get_category(saved_category) else self.settings.categories[0].name)
         saved_format = self.prefs.get("symbol_format", "unpacked")
@@ -248,6 +252,9 @@ class App:
         self.download_combo.bind("<<ComboboxSelected>>", lambda _: self.load_download())
         ttk.Button(self.download_frame, text="Load ZIP", command=self.load_download).pack(side="left")
         ttk.Button(self.download_frame, text="Folder…", command=self.choose_downloads_folder).pack(side="left", padx=(10, 0))
+        ttk.Checkbutton(self.download_frame, text="Auto-refresh", variable=self.watch_downloads,
+                        command=self.toggle_download_watch).pack(side="left", padx=10)
+        self.download_status_label = ttk.Label(options, textvariable=self.download_status)
         self.asset_displays = {}
         self.asset_choices = {}
         self.combos = {}
@@ -304,6 +311,8 @@ class App:
         self.ack.trace_add("write", lambda *_: self.update_import_button())
         root.protocol("WM_DELETE_WINDOW", self.close)
         self.refresh()
+        root.bind("<Destroy>", self.download_watch_destroyed, add="+")
+        self.schedule_download_watch()
 
     def log_text(self, text):
         self.log.configure(state="normal")
@@ -328,7 +337,8 @@ class App:
             preferences.update({"source": self.source.get(), "category": category_name, "mode": self.mode.get(), "custom": self.custom.get(), "symbol_format": self.selected_format(), "paths": settings.to_preferences(),
                                 "categories": [category.to_preferences() for category in settings.categories],
                                 "input_mode": "downloads" if self.source_choice.get() == "Downloads" else "provider",
-                                "downloads_folder": str(self.downloads_folder), "active_zip": self.active_zip})
+                                "downloads_folder": str(self.downloads_folder), "active_zip": self.active_zip,
+                                "watch_downloads": self.watch_downloads.get()})
             save_preferences(self.prefs_path, preferences)
             self.prefs = preferences
         except OSError as exc:
@@ -353,8 +363,52 @@ class App:
     def update_downloads_panel(self):
         if self.source_choice.get() == "Downloads":
             self.download_frame.pack(fill="x", pady=(4, 6))
+            self.download_status_label.pack(fill="x")
         else:
             self.download_frame.pack_forget()
+            self.download_status_label.pack_forget()
+
+    def toggle_download_watch(self):
+        self.download_watch_snapshot = None
+        self.download_status.set("Auto-refresh enabled; ZIPs still need to be selected and loaded."
+                                 if self.watch_downloads.get() else "Auto-refresh off. Use Refresh to check for ZIPs.")
+        self.persist()
+
+    def schedule_download_watch(self):
+        self.download_watch_job = self.root.after(3000, self.poll_downloads)
+
+    def download_watch_destroyed(self, event):
+        if event.widget is self.root and self.download_watch_job is not None:
+            self.root.after_cancel(self.download_watch_job)
+            self.download_watch_job = None
+
+    def poll_downloads(self):
+        self.download_watch_job = None
+        try:
+            if self.source_choice.get() != "Downloads" or not self.watch_downloads.get() or self.busy:
+                self.download_watch_snapshot = None
+                return
+            try:
+                paths = downloaded_zips(self.downloads_folder)
+                snapshot = (str(self.downloads_folder), tuple(
+                    (path.name, path.stat().st_size, path.stat().st_mtime_ns) for path in paths))
+            except (OSError, ValueError) as exc:
+                self.download_watch_snapshot = None
+                self.download_status.set(f"Auto-refresh unavailable: {exc}")
+                return
+            previous = self.download_watch_snapshot
+            if snapshot != previous:
+                # A passive list refresh must not load files or invalidate an import review.
+                selected = self.download_zip.get()
+                self.download_files = {path.name: path for path in paths}
+                self.download_combo["values"] = list(self.download_files)
+                self.download_zip.set(selected if selected in self.download_files else "")
+                self.download_watch_snapshot = snapshot
+                self.download_status.set(
+                    f"{len(paths)} ZIP downloads available. List refreshed automatically; select a ZIP to load it. "
+                    "A listed ZIP may still be downloading.")
+        finally:
+            self.schedule_download_watch()
 
     def select_source_choice(self):
         if self.source_choice.get() in PROVIDERS:
@@ -743,6 +797,9 @@ class App:
         threading.Thread(target=worker, daemon=True).start()
 
     def close(self):
+        if self.download_watch_job is not None:
+            self.root.after_cancel(self.download_watch_job)
+            self.download_watch_job = None
         self.persist()
         self.root.destroy()
 

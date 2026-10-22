@@ -167,3 +167,89 @@ class InputChoiceGuiTests(unittest.TestCase):
         self.app.select_source_choice()
         self.assertEqual(self.app.source.get(), "LCSC")
         self.assertFalse((self.workspace / "Symbols").exists())
+
+    def poll_once(self):
+        if self.app.download_watch_job is not None:
+            self.root.after_cancel(self.app.download_watch_job)
+            self.app.download_watch_job = None
+        with patch.object(self.app, "schedule_download_watch"):
+            self.app.poll_downloads()
+
+    def test_auto_refresh_discovers_without_loading_or_changing_review(self):
+        self.downloads_mode()
+        self.assertTrue(self.app.load_download())
+        self.app.validate()
+        self.app.ack.set(True)
+        plan, inventory = self.app.plan, self.app.inv
+        selected = self.app.download_zip.get()
+        self.app.watch_downloads.set(True)
+        self.poll_once()
+        new_zip = self.downloads / "new.zip"
+        create_zip(new_zip)
+        with patch.object(self.app, "load_download") as load:
+            self.poll_once()
+            load.assert_not_called()
+        self.assertIn(new_zip.name, self.app.download_files)
+        self.assertEqual(self.app.download_zip.get(), selected)
+        self.assertIs(self.app.plan, plan)
+        self.assertIs(self.app.inv, inventory)
+        self.assertTrue(self.app.ack.get())
+        self.assertIn("still be downloading", self.app.download_status.get())
+        # Replacing an existing archive updates the list notice, never its loaded assets.
+        self.app.download_status.set("sentinel")
+        self.archive.write_bytes(b"replacement still downloading")
+        self.poll_once()
+        self.assertNotEqual(self.app.download_status.get(), "sentinel")
+        self.assertIs(self.app.inv, inventory)
+
+    def test_auto_refresh_removal_clears_selection_but_keeps_loaded_assets(self):
+        self.downloads_mode()
+        self.assertTrue(self.app.load_download())
+        inventory, active = self.app.inv, self.app.active_zip
+        self.app.watch_downloads.set(True)
+        self.poll_once()
+        self.archive.unlink()
+        create_zip(self.downloads / "another.zip")
+        self.poll_once()
+        self.assertEqual(self.app.download_zip.get(), "")
+        self.assertEqual(self.app.active_zip, active)
+        self.assertIs(self.app.inv, inventory)
+        self.assertTrue(inventory.root.is_dir())
+
+    def test_auto_refresh_is_optional_pauses_for_provider_and_busy_state(self):
+        self.downloads_mode()
+        with patch("import_gui.downloaded_zips") as scan:
+            self.poll_once()
+            self.app.watch_downloads.set(True)
+            self.app.source_choice.set("SamacSys")
+            self.poll_once()
+            self.app.source_choice.set("Downloads")
+            self.app.busy = True
+            self.poll_once()
+            scan.assert_not_called()
+
+    def test_auto_refresh_handles_folder_error_and_recovers_without_log_changes(self):
+        self.downloads_mode()
+        self.app.watch_downloads.set(True)
+        self.app.log_text("Keep the reviewed import report")
+        with patch("import_gui.downloaded_zips", side_effect=OSError("temporarily unavailable")):
+            self.poll_once()
+        self.assertIn("unavailable", self.app.download_status.get())
+        self.poll_once()
+        self.assertIn(self.archive.name, self.app.download_files)
+        self.assertNotIn("unavailable", self.app.download_status.get())
+        self.assertIn("Keep the reviewed import report", self.app.log.get("1.0", "end"))
+
+    def test_auto_refresh_preference_and_destroy_cancel_callback(self):
+        self.assertFalse(self.app.watch_downloads.get())
+        self.app.watch_downloads.set(True)
+        self.app.toggle_download_watch()
+        self.assertIs(load_preferences(self.app.prefs_path)["watch_downloads"], True)
+        second_root = tk.Toplevel(self.root)
+        app = App(second_root, self.workspace)
+        self.assertTrue(app.watch_downloads.get())
+        job = app.download_watch_job
+        self.assertIn(job, self.root.tk.call("after", "info"))
+        second_root.destroy()
+        self.assertIsNone(app.download_watch_job)
+        self.assertNotIn(job, self.root.tk.call("after", "info"))

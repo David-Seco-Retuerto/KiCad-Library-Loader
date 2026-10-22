@@ -12,7 +12,7 @@ The loader has been extracted from the library repository into an independent ap
 - Persistent local preferences and a non-overwriting settings migration utility.
 - Browser search for SamacSys / Component Search Engine and LCSC, explicit export-folder selection and new-asset notices on refresh.
 - Open ZIP for native KiCad downloads, selective extraction into an ignored persistent cache, and review/import through either output format.
-- Downloads source with an in-app ZIP list, configurable remembered folder and refresh.
+- Downloads source with an in-app ZIP list, configurable remembered folder, manual refresh and optional passive auto-refresh.
 - Concise asset labels, with disambiguation for duplicate names and unchanged internal file identities.
 - Read-only KiCad setup diagnostics: global/project/linked tables, nicknames, paths, footprint references and model variables/files.
 - Import history browser with transactional per-import records, output hashes, file action classification and original ZIP provenance for new extractions.
@@ -38,7 +38,7 @@ The loader has been extracted from the library repository into an independent ap
 
 1. Complete a documented manual schematic/PCB/3D workflow check. Native symdir directory loading has passed KiCad 10.0.7 CLI verification; packed output separately passed KiCad 9.0.7.
 2. Use SamacSys for current real-world validations. Real LCSC export validation and EasyEDA download/conversion integration are deferred; the source folder was empty during development.
-3. Manually check the implemented browser-search/download-folder workflow. ZIP extraction is implemented. Automatic downloads and background folder watching remain future work.
+3. Manually check the implemented browser-search/download-folder workflow. ZIP extraction is implemented. Automatic downloads remain future work; Downloads list auto-refresh is now available.
 4. Prepare a public release: choose an application licence, versioning and packaging, then evaluate KiCad plugin integration.
 5. Investigate provider-specific APIs subject to available access and terms.
 
@@ -95,3 +95,10 @@ Successful imports now commit a new local metadata record alongside their assets
 - 159 tests ran: 158 passed, one Windows symlink-privilege skip. Nineteen new update tests cover scope, identity, shared/manual changes, dependency races, backup/history write failures, preservation and GUI review behaviour.
 - Real NUP2105LT1G ZIP validation modified only temporary extracted copies to simulate symbol/footprint/model revisions. Both formats updated successfully, exact original backups matched, history was linked, native symbols/footprints reloaded using KiCad 10.0.7 (unpacked directory) and 9.0.7 (packed), and updated STEP contents rendered with OpenCascade. The downloaded archive remained unchanged.
 - Not included: shared-asset replacement, asset addition/removal, category migration, format conversion, automatic adoption of older untracked components or a restore/undo wizard.
+
+## Passive Downloads auto-refresh — 2026-10-22
+
+- Optional remembered Auto-refresh checks the Downloads ZIP list every three seconds while the application is open. It does not load, extract or import files and does not replace a reviewed plan or the selected component.
+- Polling preserves available selections, clears a removed selection, detects size/timestamp changes, reports folder errors separately from the import report, and retries. It pauses outside Downloads mode or while the application is busy and cancels its callback on window destruction.
+- Listing a ZIP does not guarantee download completion; explicit loading retains the existing archive validation. No new dependencies or provider assets are included.
+- 164 regression tests ran: 163 passed, one existing Windows symlink-privilege skip. Five new GUI tests cover passive discovery/replacement, selection removal, opt-in/provider/busy behaviour, error recovery, preference persistence and callback cancellation. No production libraries were changed.
