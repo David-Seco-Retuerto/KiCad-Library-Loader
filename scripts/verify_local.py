@@ -9,7 +9,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 
-from import_gui import find_cli
+from kicad_tools import find_cli, cli_version
 from library_core import SYMBOL_FORMATS, associate, build_folder_plan, build_plan, children, commit_plan, read_tree, scan
 from step_preview import mesh_step
 from providers import PROVIDERS
@@ -24,6 +24,8 @@ def digest_files(root):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", type=Path, required=True)
+    parser.add_argument("--kicad-cli", type=Path, help="Use this KiCad CLI executable instead of automatic detection")
+    parser.add_argument("--require-kicad-major", type=int, help="Fail unless the native checks use at least this KiCad major version")
     parser.add_argument("--format", choices=["both", *SYMBOL_FORMATS], default="both")
     parser.add_argument("--category", default="ICs")
     parser.add_argument("--library-name", default="DVL_ICs")
@@ -35,7 +37,18 @@ def main():
     roots = {key: getattr(args, f"{key.lower()}_dir") or provider.default_folder(args.repo)
              for key, provider in PROVIDERS.items()}
     before = {key: digest_files(path) for key, path in roots.items()}
-    cli = find_cli()
+    if args.require_kicad_major is not None and args.require_kicad_major < 1:
+        parser.error("--require-kicad-major must be positive")
+    cli = str(args.kicad_cli.expanduser().resolve()) if args.kicad_cli else find_cli()
+    version, major = "unavailable", 0
+    if cli:
+        try:
+            version, major = cli_version(cli)
+        except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+            parser.error(str(exc))
+        print(f"Native validation CLI: {cli} (KiCad {version})")
+    if args.require_kicad_major and major < args.require_kicad_major:
+        parser.error(f"KiCad {args.require_kicad_major}+ is required for this validation; found {version}.")
     imported = 0
     formats = list(SYMBOL_FORMATS) if args.format == "both" else [args.format]
     with tempfile.TemporaryDirectory(prefix="dvl-integration-") as directory:
@@ -68,8 +81,11 @@ def main():
                         raise
                     print("  STEP preview check skipped: install requirements.txt")
                     break
+        if args.require_kicad_major and not imported:
+            raise RuntimeError("No native symbols were imported; the required native validation was not performed.")
         if cli and imported:
             def run_export(command, folder, expected):
+                folder.mkdir(parents=True, exist_ok=True)
                 result = subprocess.run(command, capture_output=True, text=True, timeout=60, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
                 print(result.stdout.strip())
                 if result.returncode:
@@ -85,12 +101,6 @@ def main():
                 expected = len(children(read_tree(path), "symbol"))
                 run_export([cli, "sym", "export", "svg", "--output", str(output), str(path)], output, expected)
             if unpacked.exists():
-                version = subprocess.run([cli, "version"], capture_output=True, text=True, timeout=10,
-                                         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout.strip()
-                try:
-                    major = int(version.split(".")[0])
-                except ValueError:
-                    major = 0
                 if major >= 10:
                     output = target / "svg_unpacked_directory"
                     expected = sum(len(children(read_tree(p), "symbol")) for p in unpacked.glob("*.kicad_sym"))
@@ -100,9 +110,12 @@ def main():
                     print(f"KiCad {version or 'unknown'}: unpacked files validated individually; native directory loading requires KiCad 10+ and was not tested.")
             footprints = category.footprint_library(target)
             if footprints.exists():
-                output = target / "svg_footprints"
-                run_export([cli, "fp", "export", "svg", "--output", str(output), str(footprints)], output,
-                           len(list(footprints.glob("*.kicad_mod"))))
+                # Request every library item explicitly: a successful bulk command
+                # is not sufficient evidence that all footprints were loaded.
+                for index, footprint in enumerate(sorted(footprints.glob("*.kicad_mod"))):
+                    output = target / f"svg_footprints_{index}"
+                    run_export([cli, "fp", "export", "svg", "--footprint", footprint.stem,
+                                "--output", str(output), str(footprints)], output, 1)
             print("KiCad SVG exports OK")
         elif not cli:
             print("kicad-cli unavailable: native KiCad validation skipped")

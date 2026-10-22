@@ -23,6 +23,8 @@ from archive_import import extract_native_zip, discard_extraction
 from input_choices import asset_choices, downloaded_zips
 from diagnostics_dialog import DiagnosticsDialog
 from history_dialog import HistoryDialog
+from component_updates import build_update_plan
+from update_dialog import UpdateDialog
 from settings_dialog import FolderSettingsDialog
 from categories_dialog import CategoriesDialog, FolderPreviewDialog
 
@@ -31,12 +33,7 @@ from library_core import (SYMBOL_FORMATS, ImportErrorDetail, associate, associat
                           read_tree, safe_name, save_preferences, scan, suggestion, walk)
 
 
-def find_cli():
-    found = shutil.which("kicad-cli")
-    if found:
-        return found
-    candidates = list(Path(os.environ.get("ProgramFiles", "C:/Program Files")).glob("KiCad/*/bin/kicad-cli.exe"))
-    return str(sorted(candidates, reverse=True)[0]) if candidates else None
+from kicad_tools import find_cli
 
 
 class Drawing(ttk.Frame):
@@ -297,6 +294,7 @@ class App:
         actions = ttk.Frame(main)
         actions.grid(row=14, column=0, columnspan=3, sticky="ew", pady=(8, 0))
         ttk.Button(actions, text="Import history…", command=self.open_history).pack(side="left")
+        ttk.Button(actions, text="Review update…", command=self.review_update).pack(side="left", padx=8)
         ttk.Frame(actions).pack(side="left", fill="x", expand=True)
         ttk.Button(actions, text="Validate / review plan", command=self.validate).pack(side="left", padx=8)
         self.import_button = ttk.Button(actions, text="Import", command=self.import_component, state="disabled")
@@ -632,15 +630,36 @@ class App:
         valid = self.plan is not None and (not self.plan.warnings or self.ack.get())
         self.import_button.configure(state="normal" if valid else "disabled")
 
-    def make_plan(self):
+    def make_plan(self, update=False):
         if self.settings_error:
             raise ImportErrorDetail(f"Correct the saved folder settings before importing: {self.settings_error}")
         if self.inv is None:
             raise ImportErrorDetail("Refresh a source folder before importing.")
-        return build_plan(self.repo, self.inv, self.symbol.get(), self.fp.get(), self.model.get(), self.category.get(), self.mode.get(), self.custom.get(), symbol_format=self.selected_format(),
+        builder = build_update_plan if update else build_plan
+        return builder(self.repo, self.inv, self.symbol.get(), self.fp.get(), self.model.get(), self.category.get(), self.mode.get(), self.custom.get(), symbol_format=self.selected_format(),
                           output_root=self.settings.output_root, input_roots=self.settings.sources.values(),
                           model_path_mode=self.settings.model_path_mode, model_variable=self.settings.model_variable,
                           category_config=self.settings.get_category(self.category.get()))
+
+    def make_update_plan(self):
+        plan = self.make_plan(update=True)
+        plan.history.update({"provider": self.source.get(),
+                             "input_mode": "downloads" if self.source_choice.get() == "Downloads" else "provider"})
+        return plan
+
+    def review_update(self):
+        try:
+            return UpdateDialog(self.root, self.make_update_plan(), self.make_update_plan, self.update_applied)
+        except (OSError, ValueError, KeyError, IndexError) as exc:
+            self.log_text(f"Cannot update: {exc}")
+            messagebox.showerror("Cannot update component", str(exc), parent=self.root)
+
+    def update_applied(self, plan):
+        self.plan = None
+        self.ack.set(False)
+        self.update_import_button()
+        self.log_text("Component updated. History recorded.\n" + "\n".join(plan.info) +
+                      f"\nBackup: {plan.backup_directory}\nReview placed instances in KiCad before updating the schematic or PCB.")
 
     def selected_format(self):
         return next((key for key, label in SYMBOL_FORMATS.items() if label == self.symbol_format.get()), "unpacked")

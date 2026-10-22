@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import json
+import hashlib
 import os
 import re
 from dataclasses import dataclass, field
@@ -240,6 +241,9 @@ class Plan:
     assets: dict = field(default_factory=dict)
     history: dict | None = None
     history_file: Path | None = None
+    backup_files: dict = field(default_factory=dict)
+    backup_directory: Path | None = None
+    dependency_directories: dict = field(default_factory=dict)
 
     def watch_directory(self, path):
         paths = symbol_files(path)
@@ -322,7 +326,7 @@ def build_plan(repo, inv, symbol_key, fp_key, model_key, category, mode, custom=
         raise ImportErrorDetail("Inherited symbol (extends): export a standalone copy with KiCad before importing")
     safe_name(symbol.name)
     plan = Plan(output_root=repo, protected_roots=protected)
-    plan.history = {"symbol": symbol.name, "mpn": symbol.mpn, "category": layout.name,
+    plan.history = {"symbol": symbol.name, "mpn": str(prop(node, "Manufacturer_Part_Number") or prop(node, "MPN") or symbol.name), "category": layout.name,
                     "library_name": layout.library_name, "model_folder": layout.model_folder,
                     "symbol_format": symbol_format, "naming_mode": mode,
                     "input_root": str(inv.root), "source_files": {
@@ -404,6 +408,7 @@ def build_plan(repo, inv, symbol_key, fp_key, model_key, category, mode, custom=
     # Each new unpacked file is a complete native library containing one symbol.
     # Existing files remain untouched, even if they contain several symbols.
     library.append(node)
+    plan.history["symbol_sha256"] = hashlib.sha256(dump(node).encode("utf-8")).hexdigest()
     plan.add(destination, (dump(library) + "\n").encode(), merge=symbol_format == "packed", role="symbol")
     plan.info.extend([f"Symbol output: {SYMBOL_FORMATS[symbol_format]}",
                       f"Symbol destination: {destination}",
@@ -441,10 +446,11 @@ def commit_plan(repo, plan):
     if plan.output_root is not None and repo != plan.output_root:
         raise ImportErrorDetail("The output root changed since validation. Build a new import plan.")
     validate_output_layout(repo, plan.protected_roots)
-    from import_history import add_history_record
+    from import_history import add_history_record, add_backup_files
+    add_backup_files(plan)
     add_history_record(plan)
     # Validate the whole plan before creating the root or a lock file.
-    for path in (*plan.before, *plan.files, *plan.directories, *plan.folders):
+    for path in (*plan.before, *plan.files, *plan.directories, *plan.folders, *plan.dependency_directories):
         check_destination(path, repo, plan.protected_roots)
     check_folders(plan.folders)
     repo.mkdir(parents=True, exist_ok=True)
@@ -463,6 +469,11 @@ def commit_plan(repo, plan):
             actual = path.read_bytes() if path.exists() else None
             if actual != before:
                 raise ImportErrorDetail(f"Destination changed since validation: {path}")
+        for directory, names in plan.dependency_directories.items():
+            check_destination(directory, repo, plan.protected_roots)
+            current_names = tuple(sorted(item.name for item in directory.iterdir())) if directory.is_dir() else None
+            if current_names != names:
+                raise ImportErrorDetail(f"Dependency folder changed since review: {directory}")
         for directory, names in plan.directories.items():
             check_destination(directory, repo, plan.protected_roots)
             if tuple(p.name for p in symbol_files(directory)) != names:

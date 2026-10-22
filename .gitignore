@@ -26,3 +26,6 @@ dist/
 
 # Local import history and source paths
 .kicad-loader-history/
+
+# Local component update backups
+.kicad-loader-backups/

@@ -18,7 +18,7 @@ python -m venv .venv
 
 If `.venv` already exists, run only the last two commands. The importer and 2D previews use the standard library. The integrated STEP preview uses `cadquery-ocp-novtk`, the OpenCascade Python bindings without VTK. No external CAD viewer, STEP file association, internet connection or browser is needed for 3D preview after installation.
 
-Optional: install KiCad and expose `kicad-cli` on PATH for accurate SVG previews. The application also checks the usual Windows installation directory under `Program Files/KiCad`.
+Optional: install KiCad for accurate SVG previews. The application uses `kicad-cli` on PATH first, then checks Windows installations under Program Files and the per-user `%LOCALAPPDATA%/Programs/KiCad` location. Without a PATH override, numeric version ordering selects the newest detected installation.
 
 Alternatively, run `powershell -File .\start_gui.ps1`; it prefers the application's virtual environment. The older `scripts/start_gui.ps1` entry point also works. To use another settings workspace:
 
@@ -270,6 +270,27 @@ Use a new test project to check the complete chain:
 
 A user manual smoke check has confirmed that the import workflow generally works in KiCad and that the linked 3D model loads automatically. This is separate from the automated checks below; it does not establish exhaustive validation of every component or KiCad version.
 
+## Updating an imported component
+
+Use **Review update…** for an existing component with matching import history. The normal **Import** action still refuses to replace an existing symbol.
+
+1. Load the updated export folder or ZIP and select its symbol, footprint and STEP independently.
+2. Choose the same category and symbol output format as the tracked import.
+3. Click **Review update…**. The report shows changed files, old/new content hashes and text diffs for symbols and footprints. STEP changes are identified by size/hash; **Existing STEP…** and **Incoming STEP…** open the raw models without footprint transforms.
+4. Review the changes and warnings, including pin/pad mapping, package dimensions and 3D alignment. Tick the review checkbox, then **Back up and apply update**. Merely opening or cancelling the review writes no backups or output changes.
+
+The first update workflow keeps the component's existing library nickname, category, symbol format, asset names, model extension and symbol/footprint/model set. A new source geometry name does not rename the existing footprint. Naming choices in the main window do not rename assets during an update. Adding/removing assets, relocating categories, adopting an untracked component, format conversion and applying shared-asset changes remain separate future workflows.
+
+Before an update, recorded destination hashes must match. Missing files, changed MPNs and manual edits are blocked. Packed updates replace only the selected symbol and preserve other symbol definitions. New history records also store a per-symbol fingerprint so a later recorded append does not prevent verifying that symbol. Older packed records without this fingerprint can only be used if the entire library still matches their recorded state; otherwise automatic update is blocked rather than inferred.
+
+Changed footprints/models are blocked if another component or symbol format has used them in the local history. The checker also scans symbol references and model references in the generated output root, including files without import history. Unreadable dependencies or ambiguous ownership stop the update. These conservative checks may require a future separate-copy or migration workflow even if you no longer use a historical reference. They do not inspect every external project, library outside the output root or already placed PCB instance. Both symbol formats are not synchronised automatically.
+
+Applying rechecks the incoming files, destination snapshots, history and dependency folders. If the reviewed plan changes, confirmation is cleared and the refreshed plan must be reviewed again. File/directory changes are rechecked under the existing output lock before writing.
+
+Backups of every changed destination file are written first to `<output-root>/.kicad-loader-backups/<update-id>/`, retaining their paths relative to the output root. A manifest contains the original hashes. A packed symbol backup contains the complete preceding library. Backups, replacements and the new history event participate in the existing rollback mechanism: an I/O failure restores the previous assets and removes newly written transaction files. A power-loss crash is still not atomic across files.
+
+The new history event links to the previous import/update and records its backup folder. Backups persist after success and are excluded by this application's and the original library workspace's ignore rules; configure other output repositories yourself. They contain vendor library data. There is no automatic backup cleanup or restore button yet. Manual restoration requires reviewing later imports first, especially when restoring a whole packed library. Existing schematic/PCB instances must be reviewed and updated through KiCad separately.
+
 ## Import history
 
 Click **Import history…** at the bottom of the main window to review imports into the current output library root. Records appear newest first and can be filtered by component, MPN, category, nickname or provider. Select a row to see its source files, original ZIP when recorded, selected symbol format, naming mode, destination files and acknowledged warnings. **Copy details** copies this summary for troubleshooting; **Refresh** rereads the local records.
@@ -282,7 +303,7 @@ A history record is included in the same application write plan and lock as its 
 
 New **Open ZIP…** extractions retain a local `.loader-archive-origin.json` with the original archive path and SHA-256. Imports from those caches include that provenance in the history. Folder inputs and older caches without this metadata report the original ZIP as unknown. The archive does not need to remain available to browse the record. The GUI also records the chosen provider and input mode; direct core imports retain the source file/folder information without assuming a provider.
 
-History is an import-time snapshot. Files may subsequently be changed, moved, deleted or extended by later packed imports; viewing a record does not verify their current state. This version provides no component removal, undo, automatic update or category migration. Those features need additional reference and ownership checks before they can safely use this history.
+History is an import-time snapshot. Files may subsequently be changed, moved, deleted or extended by later packed imports; viewing a record does not verify their current state. Reviewed in-place updates are now available as described above. Component removal, automatic undo/restore, unattended updates and category migration are not implemented.
 
 History is local and excluded by the application's ignore rules and the original library workspace's ignore rules. If you choose another output Git repository, add `.kicad-loader-history/` to its ignore rules if desired; the application does not edit arbitrary repositories. Its records can contain personal source paths. Do not assume it is a transferable package or a backup of your library.
 
@@ -318,7 +339,7 @@ An OK result means the inspected saved paths and references match. It does not t
 
 Validation checks native syntax, filenames, collisions, references, pin/pad numbers and STEP header/end markers. OpenCascade also checks that previewed STEP models can be read and contain renderable surfaces. Pin/pad mismatches and missing assets require explicit review.
 
-Existing symbols are never replaced. Duplicate names in the selected library block imports, including duplicates in differently named files inside a symdir. Adding a new symbol preserves previous symbols in both layouts. A byte-identical footprint or STEP is reused; different content under the same name blocks the import. Original names can share assets when content and references match; suggested names create component-specific copies.
+The standard Import action never replaces existing symbols. Duplicate names in the selected library block standard imports, including duplicates in differently named files inside a symdir. Adding a new symbol preserves previous symbols in both layouts. A byte-identical footprint or STEP is reused; different content under the same name blocks a standard import. The separate **Review update…** workflow permits controlled replacement only after the history, reference and backup checks above. Original names can share assets when content and references match; suggested names create component-specific copies.
 
 Writes use an exclusive application lock, destination-change checks, temporary files and rollback on I/O failures. Multi-file imports are not crash-atomic against power loss, and external editors may ignore the lock. Avoid editing destination libraries during import. After a crash, inspect outputs before retrying. Remove a stale `.kicad-importer.lock` only after confirming no other importer is running. Stale `.import-tmp` files are not silently deleted.
 
@@ -326,7 +347,7 @@ Plans are tied to their selected output root, and writing rechecks the destinati
 
 ## Git and third-party licensing
 
-The application ignores local preferences, environments, locks, temporary files, `.kicad-loader-history/` metadata and the vendor ZIP cache `.kicad-importer-cache/`. Entire `Imports/`, `Symbols/`, `Footprints/` and `3DModels/` trees at the application root are ignored, including custom category names. Tests use synthetic fixtures; no SamacSys or LCSC models are distributed.
+The application ignores local preferences, environments, locks, temporary files, `.kicad-loader-history/` metadata, `.kicad-loader-backups/` and the vendor ZIP cache `.kicad-importer-cache/`. Entire `Imports/`, `Symbols/`, `Footprints/` and `3DModels/` trees at the application root are ignored, including custom category names. Tests use synthetic fixtures; no SamacSys or LCSC models are distributed.
 
 Libraries saved outside this application folder belong to their own workspace. The loader does not change their Git configuration or ignore rules. Review vendor assets and their licences before staging or publishing; version control remains user-managed.
 
@@ -336,7 +357,7 @@ Ignore rules do not untrack previously committed files. Review `git ls-files` an
 
 Independent input/output paths, configurable categories/library names and explicit folder preparation are implemented. The next steps are:
 
-1. Complete independent-installation smoke checks and native KiCad 10 directory verification. The standalone folder extraction is implemented; repository creation remains user-managed.
+1. Complete a repeatable manual schematic-to-PCB/3D workflow check. Native KiCad 10.0.7 symdir loading and KiCad 9.0.7 packed loading have passed CLI verification; standalone extraction is implemented.
 2. Browser search and explicit downloaded-export folder selection are implemented. Next, check the complete browser/download workflow manually with real exports, using SamacSys; real LCSC validation remains deferred.
 3. Standalone publication, followed by KiCad plugin packaging.
 4. Provider-specific API search and downloads, subject to available access.
@@ -357,6 +378,16 @@ Independent input/output paths, configurable categories/library names and explic
 .venv\Scripts\python.exe scripts\verify_local.py --repo C:\path\KiCad-Libraries --category Analog --library-name MyLib_Analog --model-folder Analog_Models
 ```
 
+For native KiCad 10 validation, require the version explicitly:
+
+```powershell
+.venv\Scripts\python.exe scripts\verify_local.py --repo C:\path\KiCad-Libraries --require-kicad-major 10
+# Override automatic detection, for example with a per-user Windows installation:
+.venv\Scripts\python.exe scripts\verify_local.py --repo C:\path\KiCad-Libraries --kicad-cli "$env:LOCALAPPDATA\Programs\KiCad\10.0\bin\kicad-cli.exe" --require-kicad-major 10
+```
+
+The verifier prints the actual executable and version. Required-version checks fail before importing if the selected executable is absent, unrecognised or too old, and fail if no native symbols are available. Native KiCad 10 checks include loading the entire symdir, rather than only its individual symbol files. Footprint checks request every item by name from its library and require actual SVG output; destination folders are created before invoking KiCad. Synthetic tests exercise these conditions with mocks; the real CLI runs above provide the native validation evidence.
+
 Tests cover associations, naming, references, unchanged sources, collisions, duplicate symbols, identical-file reuse, concurrent changes, rollback, unsupported formats, preferences and the Tk import workflow. Preview regressions cover pin label placement in all four orientations, active-low marks, internal-viewer routing, STEP tessellation, model bounds, rotation and rendering through the subprocess loader. STEP tests require the dependency in `requirements.txt`; GUI tests require Tcl/Tk and a display.
 
 Symbol-layout regressions also cover one-symbol unpacked files, preserving nested units, appending without touching other files, duplicates across filenames, matching/differing copies in the other format, directory changes since validation and rejecting fake downgrades. The Tk test imports into both formats and verifies that the selection persists.
@@ -365,16 +396,18 @@ Folder-setting tests cover migration of existing preferences, independent extern
 
 Category tests additionally cover default migration, custom symbol/footprint/model references in both formats, invalid/duplicate names and suffixes, editor persistence, preserving custom categories when changing paths, preview cancellation, preparation without symbol imports, existing-file preservation, conflicts added after preview and preventing a `.kicad_sym` folder in packed mode.
 
-The local verifier defaults to testing **both** layouts, reuses common footprint/STEP outputs, and verifies that original sources are unchanged. KiCad 9.0.7 has validated the packed library and the individual files within the unpacked directory by exporting them to SVG. Native `.kicad_symdir` directory loading requires KiCad 10+, which was not installed in the development environment. If a KiCad 10+ CLI is found, the verifier additionally tests loading the directory as a library; otherwise it explicitly reports that this check was not run.
+The local verifier defaults to testing **both** layouts, reuses common footprint/STEP outputs, and verifies that original sources are unchanged. KiCad 9.0.7 has validated the packed library and the individual files within the unpacked directory by exporting them to SVG. Native `.kicad_symdir` directory loading was additionally verified with KiCad 10.0.7 on 2026-10-22 using AD7190BRUZ, ESP32-S3-WROOM-1-N4R8 and NE555DR. The verifier tested both symbol layouts, all three footprint library items and OpenCascade STEP previews in temporary outputs; source hashes were unchanged. KiCad 9.0.7 separately passed the packed-only verification. This establishes those CLI checks, rather than a complete GUI placement/PCB update/3D viewer test or exhaustive compatibility.
 
 Workspace-extraction tests cover relative and legacy path migration, custom categories and preferences, source preservation, refusal to replace settings, invalid/missing preferences, and launching the CLI from an unrelated directory.
 
 Browser-search tests cover URL encoding, explicit browser launching, invalid/empty queries and browser errors. Download-handoff tests cover provider-specific path persistence, cancellation, overlap rejection, save failures, unchanged inputs, subsequent validated import, refresh discovery and unsupported ZIP-only folders. They use mocked browser/file-picker calls and synthetic exports.
 
-ZIP regression tests use synthetic multi-CAD archives and cover selective extraction, retained licence metadata, traversal/absolute/device paths, symlinks, duplicate paths, size/count limits, damaged or legacy-only archives, cleanup, Cancel/Save failure behaviour, provider handoff and validated imports in both KiCad output formats. A real NUP2105LT1G SamacSys ZIP was also tested using temporary extraction and output: both layouts, STEP preview and KiCad 9 SVG exports passed. Native directory loading still requires a separate KiCad 10 check.
+ZIP regression tests use synthetic multi-CAD archives and cover selective extraction, retained licence metadata, traversal/absolute/device paths, symlinks, duplicate paths, size/count limits, damaged or legacy-only archives, cleanup, Cancel/Save failure behaviour, provider handoff and validated imports in both KiCad output formats. A real NUP2105LT1G SamacSys ZIP was also tested using temporary extraction and output: both layouts, STEP preview and KiCad 9 SVG exports passed. Native directory loading has subsequently passed the KiCad 10.0.7 checks described above.
 
 Downloads and display-label regressions cover shallow ZIP listing, date ordering, partial files, refresh, folder preference persistence, save failures, missing archives, failed-load recovery, restart selection, exact duplicate asset selection and imports in both output formats.
 
 KiCad setup diagnostics tests cover matching and mismatched nicknames/paths, saved and inherited variables, project overrides, disabled libraries, nested and cyclic tables, missing referenced files, malformed/duplicate registrations, symbol layout/version mismatches, the report GUI and read-only behaviour.
 
 History regressions cover import-time destination hashes, created/updated/reused classifications, packed append history, symbol-only records, rollback after metadata write failures, retry without duplicate events, ZIP provenance, older caches, corrupt records and the read-only filtered history browser.
+
+Update regressions cover both symbol formats, exact backups, packed sibling preservation, manual edits, fresh MPN identity, older history limits, recorded/untracked shared assets, other-format sharing, changed dependencies after review, write-failure rollback, stable names/absolute paths and explicit GUI confirmation with re-review on changes.

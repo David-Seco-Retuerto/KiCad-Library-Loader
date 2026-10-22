@@ -16,6 +16,7 @@ The loader has been extracted from the library repository into an independent ap
 - Concise asset labels, with disambiguation for duplicate names and unchanged internal file identities.
 - Read-only KiCad setup diagnostics: global/project/linked tables, nicknames, paths, footprint references and model variables/files.
 - Import history browser with transactional per-import records, output hashes, file action classification and original ZIP provenance for new extractions.
+- Controlled in-place updates with explicit diffs/confirmation, stable names, backup manifests, history linkage and manual-edit/shared-asset protection.
 
 ## Code map
 
@@ -29,12 +30,13 @@ The loader has been extracted from the library repository into an independent ap
 - `scripts/step_preview.py`: OpenCascade tessellation and preview support.
 - `scripts/kicad_diagnostics.py`, `diagnostics_dialog.py`: saved KiCad configuration and asset reference reports.
 - `scripts/import_history.py`, `history_dialog.py`: import-time provenance records and a read-only history browser.
+- `scripts/component_updates.py`, `update_dialog.py`: tracked update planning, dependency checks and review/apply UI.
 - `scripts/verify_local.py`: optional real-export verification with temporary outputs.
 - `tests/`: synthetic core and GUI regression tests.
 
 ## Next milestones
 
-1. Manual launch and import check from the independent installation; validate native symdir directory loading with KiCad 10+.
+1. Complete a documented manual schematic/PCB/3D workflow check. Native symdir directory loading has passed KiCad 10.0.7 CLI verification; packed output separately passed KiCad 9.0.7.
 2. Use SamacSys for current real-world validations. Real LCSC export validation and EasyEDA download/conversion integration are deferred; the source folder was empty during development.
 3. Manually check the implemented browser-search/download-folder workflow. ZIP extraction is implemented. Automatic downloads and background folder watching remain future work.
 4. Prepare a public release: choose an application licence, versioning and packaging, then evaluate KiCad plugin integration.
@@ -67,8 +69,29 @@ Fourteen synthetic archive/GUI regression tests additionally cover extraction bo
 
 ## Next integration step
 
-Check KiCad setup is now available as a read-only diagnostic. Automatic library-table registration and changes to KiCad preferences are not implemented. Native KiCad 10 directory loading remains a separate validation task; a configuration report does not establish it. Import history is implemented. Component updates, undo/removal and managed category migration remain future work; historical records alone do not establish ownership or current references.
+Check KiCad setup is now available as a read-only diagnostic. Automatic library-table registration and changes to KiCad preferences are not implemented. Native KiCad 10.0.7 directory loading has now passed CLI verification (2026-10-22); the configuration report itself does not perform or establish CAD loading. Import history is implemented. Controlled updates are implemented with additional current-file/reference checks. Undo/removal and managed category migration remain future work.
 
 ## Import history implementation
 
 Successful imports now commit a new local metadata record alongside their assets. New ZIP extractions retain archive path/hash provenance in the ignored cache. Existing pre-feature imports are not reconstructed. Records can be viewed and filtered for the current output root; no delete/undo/update action is provided yet. The history directory is excluded in both the application and original library workspace ignore files. No Git operations were performed.
+
+## Native KiCad 9/10 validation — 2026-10-22
+
+- Found KiCad 10.0.7 in a per-user Windows installation. CLI discovery now includes this location and compares numeric versions; PATH remains an explicit priority.
+- Added `--kicad-cli` and `--require-kicad-major` to the local verifier. A required version cannot silently fall back to KiCad 9, and an empty input cannot pass the required native checks.
+- Real SamacSys AD7190BRUZ, ESP32-S3-WROOM-1-N4R8 and NE555DR: six temporary imports (both formats), SVG export of the packed library, individual unpacked files and native symdir directory all passed with KiCad 10.0.7. Each of the three footprints was exported by name from the generated library. STEP surfaces were checked with OpenCascade. Source hashes were unchanged.
+- A separate KiCad 9.0.7 run passed three packed imports, symbol/footprint SVGs and STEP preview checks.
+- Fixed verifier SVG destination preparation: KiCad 10 footprint export needed an existing output directory. No component geometry change was required.
+- 140 regression tests ran: 139 passed; the existing Windows directory-symlink privilege test was skipped. Eight new tests cover discovery and verifier preconditions/commands; mocked CLI tests are distinct from the real CAD runs.
+- Existing production libraries, schematics and PCB files were not used as write targets. A full interactive schematic placement → PCB update → 3D viewer workflow remains a manual check. This supersedes earlier entries saying native directory loading was unverified.
+- Controlled component updates are now implemented (see below). Next development candidates: managed category migration, safe restore/removal, and automatic download detection after further real-world update testing.
+
+## Controlled component updates — 2026-10-22
+
+- Review update keeps the tracked asset names, category, format and asset set. It requires matching history and protects recorded manual changes. New per-symbol fingerprints allow packed updates after recorded appends; older insufficient packed history is blocked explicitly.
+- Shared changed assets are blocked using local history and reference scanning under the output root. The checker does not claim complete knowledge of external projects or already placed instances.
+- Review shows text diffs and model hashes, with raw STEP preview controls. Apply requires explicit confirmation and rebuilds the plan; changes invalidate confirmation. Backups are committed before replacements under the existing lock, with dependency snapshots and I/O rollback.
+- Backups are ignored in the independent application and original library workspace. No Git operations or production-library update were performed.
+- 159 tests ran: 158 passed, one Windows symlink-privilege skip. Nineteen new update tests cover scope, identity, shared/manual changes, dependency races, backup/history write failures, preservation and GUI review behaviour.
+- Real NUP2105LT1G ZIP validation modified only temporary extracted copies to simulate symbol/footprint/model revisions. Both formats updated successfully, exact original backups matched, history was linked, native symbols/footprints reloaded using KiCad 10.0.7 (unpacked directory) and 9.0.7 (packed), and updated STEP contents rendered with OpenCascade. The downloaded archive remained unchanged.
+- Not included: shared-asset replacement, asset addition/removal, category migration, format conversion, automatic adoption of older untracked components or a restore/undo wizard.

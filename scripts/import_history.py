@@ -6,6 +6,7 @@ from pathlib import Path
 import uuid
 
 HISTORY_FOLDER = ".kicad-loader-history"
+BACKUP_FOLDER = ".kicad-loader-backups"
 ORIGIN_FILE = ".loader-archive-origin.json"
 
 
@@ -15,6 +16,28 @@ def file_hash(path):
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def add_backup_files(plan):
+    if not plan.backup_files or plan.backup_directory is not None:
+        return
+    root = Path(plan.output_root).resolve()
+    folder = root / BACKUP_FOLDER / uuid.uuid4().hex
+    backup_paths = []
+    manifest = {"schema_version": 1, "operation": "update", "previous_event_id": plan.history.get("previous_event_id"), "files": []}
+    for path, data in plan.backup_files.items():
+        relative = path.relative_to(root)
+        destination = folder / relative
+        plan.add(destination, data)
+        backup_paths.append(destination)
+        manifest["files"].append({"relative_path": relative.as_posix(), "sha256": hashlib.sha256(data).hexdigest()})
+    destination = folder / "manifest.json"
+    plan.add(destination, (json.dumps(manifest, indent=2) + "\n").encode("utf-8"))
+    backup_paths.append(destination)
+    # Persist every backup before changing a component, under the same lock.
+    plan.files = {**{path: plan.files[path] for path in backup_paths}, **plan.files}
+    plan.backup_directory = folder
+    plan.history["backup_folder"] = folder.relative_to(root).as_posix()
 
 
 def add_history_record(plan):
@@ -86,6 +109,8 @@ def describe_record(record):
     archive_path = archive.get("archive_path") if isinstance(archive, dict) else None
     lines = [f"Component: {record['symbol']}", f"MPN: {record.get('mpn', '')}",
              f"Imported (UTC): {record['imported_at_utc']}",
+             f"Operation: {record.get('operation', 'import')}",
+             f"Backup folder: {record.get('backup_folder') or 'Not applicable'}",
              f"Category: {record['category']} | Library: {record['library_name']}",
              f"Symbol format: {record['symbol_format']} | Naming: {record.get('naming_mode', '')}",
              f"Provider: {record.get('provider') or 'Local export'}",
