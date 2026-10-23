@@ -254,6 +254,8 @@ class Plan:
     backup_files: dict = field(default_factory=dict)
     backup_directory: Path | None = None
     dependency_directories: dict = field(default_factory=dict)
+    removals: dict = field(default_factory=dict)
+    related_assets: dict = field(default_factory=dict)
 
     def watch_directory(self, path):
         paths = symbol_files(path)
@@ -272,6 +274,17 @@ class Plan:
             raise ImportErrorDetail(f"Already exists with different content: {path}. Choose another name; overwriting is disabled.")
         self.before[path] = old
         self.files[path] = content
+
+    def remove(self, path, role):
+        if path in self.files or path in self.assets or not path.is_file():
+            raise ImportErrorDetail(f"Cannot remove a missing or conflicting asset: {path}")
+        data = path.read_bytes()
+        if path in self.before and self.before[path] != data:
+            raise ImportErrorDetail(f"Destination changed while planning removal: {path}")
+        self.before[path] = data
+        self.removals[path] = role
+        self.related_assets[path] = role
+        self.backup_files[path] = data
 
 
 def symbol_files(folder):
@@ -456,11 +469,21 @@ def commit_plan(repo, plan):
     if plan.output_root is not None and repo != plan.output_root:
         raise ImportErrorDetail("The output root changed since validation. Build a new import plan.")
     validate_output_layout(repo, plan.protected_roots)
+    if plan.removals:
+        if not plan.history or plan.history.get("operation") not in {"move", "remove"}:
+            raise ImportErrorDetail("File removal requires a reviewed category move or component removal.")
+        for path in plan.removals:
+            relative = path.relative_to(repo)
+            if (path in plan.files or path in plan.assets or plan.before.get(path) is None
+                    or plan.backup_files.get(path) != plan.before[path]
+                    or relative.parts[0] not in {"Symbols", "Footprints", "3DModels"}
+                    or path.suffix.lower() not in {".kicad_sym", ".kicad_mod", ".stp", ".step"}):
+                raise ImportErrorDetail("Unsafe or unbacked component removal plan.")
     from import_history import add_history_record, add_backup_files
     add_backup_files(plan)
     add_history_record(plan)
     # Validate the whole plan before creating the root or a lock file.
-    for path in (*plan.before, *plan.files, *plan.directories, *plan.folders, *plan.dependency_directories):
+    for path in (*plan.before, *plan.files, *plan.directories, *plan.folders, *plan.dependency_directories, *plan.removals):
         check_destination(path, repo, plan.protected_roots)
     check_folders(plan.folders)
     repo.mkdir(parents=True, exist_ok=True)
@@ -517,6 +540,13 @@ def commit_plan(repo, plan):
             finally:
                 if temporary_created:
                     temporary.unlink(missing_ok=True)
+        # All backups, destination assets and history have been written first.
+        for path in plan.removals:
+            check_destination(path, repo, plan.protected_roots)
+            if path.read_bytes() != plan.before[path]:
+                raise ImportErrorDetail(f"Destination changed during move: {path}")
+            written.append(path)
+            path.unlink()
     except Exception:
         for path in reversed(written):
             old = plan.before[path]

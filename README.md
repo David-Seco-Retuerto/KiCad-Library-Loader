@@ -328,7 +328,7 @@ Use **Review update…** for an existing component with matching import history.
 3. Click **Review update…**. The report shows changed files, old/new content hashes and text diffs for symbols and footprints. STEP changes are identified by size/hash; **Existing STEP…** and **Incoming STEP…** open the raw models without footprint transforms.
 4. Review the changes and warnings, including pin/pad mapping, package dimensions and 3D alignment. Tick the review checkbox, then **Back up and apply update**. Merely opening or cancelling the review writes no backups or output changes.
 
-The first update workflow keeps the component's existing library nickname, category, symbol format, asset names, model extension and symbol/footprint/model set. A new source geometry name does not rename the existing footprint. Naming choices in the main window do not rename assets during an update. Adding/removing assets, relocating categories, adopting an untracked component, format conversion and applying shared-asset changes remain separate future workflows.
+The first update workflow keeps the component's existing library nickname, category, symbol format, asset names, model extension and symbol/footprint/model set. A new source geometry name does not rename the existing footprint. Naming choices in the main window do not rename assets during an update. Adding/removing assets, adopting an untracked component, format conversion and applying shared-asset changes remain separate future workflows. Moving a tracked component to another category uses the separate history workflow below.
 
 Before an update, recorded destination hashes must match. Missing files, changed MPNs and manual edits are blocked. Packed updates replace only the selected symbol and preserve other symbol definitions. New history records also store a per-symbol fingerprint so a later recorded append does not prevent verifying that symbol. Older packed records without this fingerprint can only be used if the entire library still matches their recorded state; otherwise automatic update is blocked rather than inferred.
 
@@ -353,7 +353,42 @@ For packed `.kicad_sym` libraries, only the selected symbol definition is restor
 
 Applying rebuilds the plan and clears confirmation if the reviewed state changes. File snapshots, backup data, history and dependency folders are checked again under the output lock. Current changed files are backed up before restoration, and a new `restore` history event links the reverted update and restored version. Original history and backups remain available; restoring does not delete any component. An I/O failure rolls back the transaction; an abrupt power loss is not atomic across files. Empty transaction folders may remain after a failed write.
 
-This first workflow does not offer redo, multiple-step undo, removal, category migration or format conversion. After a restore, a new **Review update…** can update the component again using a selected export. Library restoration does not change already placed schematic or PCB instances; review and update those separately in KiCad.
+This restoration workflow does not offer redo, multiple-step undo, removal, undoing a category move or format conversion. After a restore, a new **Review update…** can update the component again using a selected export. Library restoration does not change already placed schematic or PCB instances; review and update those separately in KiCad.
+
+## Move a component to another category
+
+1. Open **Import history…** for the output root containing the component.
+2. Select its latest active record and click **Move to category…**.
+3. Choose a configured destination category, then **Review move…**.
+4. Review destination paths, source removals, retained shared assets, diffs and warnings. Tick the review checkbox and click **Back up and move**. Choosing a category or cancelling the review writes nothing.
+5. Register the destination symbol and footprint libraries in KiCad under the displayed nickname if needed. Review and reassign existing schematic/PCB library references separately; the loader does not rewrite projects.
+
+A move preserves component/footprint/model names and the current native symbol layout: packed `.kicad_sym` stays packed; genuine `.kicad_symdir` stays unpacked. The destination symbol's Footprint property and the copied footprint's STEP path are adjusted. STEP bytes, footprint geometry and model transforms are preserved. The current output settings determine whether the new STEP reference uses the configured path variable or an absolute path. No format conversion or synchronisation of other copies occurs.
+
+Only verified, currently tracked components can move. Missing files, manual edits, insufficient older packed history, unreadable dependencies and symbols with inherited dependants block the move. The destination category must use distinct library and model-folder names. An existing destination symbol blocks the move; footprint/STEP files are reused only if their complete contents match. Other packed-library symbols are preserved. Moving the last packed symbol leaves a valid empty source library; empty folders are retained.
+
+Shared source footprints/models are retained using active history and references within the output root. Unshared source files are removed after backup; a packed source symbol is removed from its library rather than deleting that library. External projects, libraries outside the output root and already placed instances are not inspected. They may still use the old symbol nickname or retained assets, so review those assignments before moving a component used in a design.
+
+Changed or removed files are backed up first under `.kicad-loader-backups/`. A linked `move` event records both categories and source-file changes; original ZIP/acquisition provenance is retained without requiring the original download. Apply rebuilds and rechecks the plan, history, files and dependency folders under the application lock. I/O failures roll back writes and removals; power loss is not atomic across files. Backups contain vendor data and have no automatic cleanup.
+
+The current **Restore…** action reverts updates only, not moves. You can select the new active history record and review a move back if its validation and collision checks pass. Automatic move undo and adopting untracked components remain future work. Reviewed removal and recovery are available below.
+
+## Remove and recover a component
+
+1. Open **Import history…** and select the latest active record for the component.
+2. Click **Remove component…**. Review the files to remove, shared resources to retain, diffs and warnings.
+3. Tick the review checkbox and click **Back up and remove**. Opening or cancelling the review changes nothing.
+4. To recover it, select its removal event and click **Recover removed…**, review the recovery plan, tick the checkbox and click **Recover component**.
+
+Removal supports both packed KiCad 9 libraries and genuine KiCad 10+ symdir libraries. It removes only the chosen symbol/definition, preserving other symbols and empty libraries/folders. Footprint/STEP files are removed only if active history and references within the selected output root do not identify another user. Shared assets stay in place. Missing/manual changes, insufficient older packed history, unreadable dependencies or inherited dependants block the operation. The loader does not adopt untracked components.
+
+Every removed/changed file is backed up before modification under `.kicad-loader-backups/`; a removal event retires the component in local history and records retained/changed/removed paths. Keep both the history and backups. They contain vendor data and may contain personal paths; the application's ignore rules exclude them, but other output repositories need their own ignore rules. No original downloaded export is needed for removal or recovery.
+
+Recovery verifies the latest removal, its preceding component version, manifest and backup hashes, retained resources, destination names and current recorded packed-library contents. It restores only the selected packed symbol, preserving later recorded sibling imports. An existing symbol or different footprint/STEP file blocks recovery; byte-identical footprint/STEP files may be reused. Missing or edited retained resources and modified/missing backups also block recovery. A recovered or reimported component cannot be recovered again from an older removal event. Recovery adds a new active history event and keeps the removal event/backups.
+
+Both actions rebuild the reviewed plan before applying and check history, files and relevant directories again under the application lock. Recovery backs up a current packed library before adding the recovered symbol. I/O failures roll back asset, metadata and removal changes. Power loss is not atomic across files; empty transaction folders may remain after failures. Backup cleanup is manual.
+
+Existing projects, libraries outside the output root and already placed schematic/PCB instances are not inspected or rewritten. They may still reference a removed symbol or resource. Review affected designs in KiCad before removal, and check their assignments after recovery. Other symbol-format copies are not synchronised. This workflow recovers a tracked removal; it is not a general multi-step undo, move undo or disaster-recovery wizard.
 
 ## Import history
 
@@ -367,7 +402,7 @@ A history record is included in the same application write plan and lock as its 
 
 New **Open ZIP…** extractions retain a local `.loader-archive-origin.json` with the original archive path and SHA-256. Imports from those caches include that provenance in the history. Folder inputs and older caches without this metadata report the original ZIP as unknown. The archive does not need to remain available to browse the record. The GUI also records the chosen provider and input mode; direct core imports retain the source file/folder information without assuming a provider.
 
-History is an import-time snapshot. Files may subsequently be changed, moved, deleted or extended by later packed imports; viewing a record does not verify their current state. Reviewed in-place updates are now available as described above. Reviewed restoration of the latest component update is described above. Component removal, undoing initial imports, unattended updates and category migration are not implemented.
+History is an import-time snapshot. Files may subsequently be changed, moved, deleted or extended by later packed imports; viewing a record does not verify their current state. Reviewed in-place updates are now available as described above. Reviewed restoration of the latest component update is described above. Reviewed category moves are also available above. Reviewed removal and recovery are also available above. Unattended updates and automatic adoption of untracked components are not implemented.
 
 History is local and excluded by the application's ignore rules and the original library workspace's ignore rules. If you choose another output Git repository, add `.kicad-loader-history/` to its ignore rules if desired; the application does not edit arbitrary repositories. Its records can contain personal source paths. Do not assume it is a transferable package or a backup of your library.
 
@@ -488,3 +523,7 @@ An initial explicit LCSC-code download through easyeda2kicad installed with the 
 - Keep **Search online…** permanently, including after direct downloads are implemented, so users can browse alternative packages and variants manually. A supported browser/download handoff remains useful where a provider has no suitable integration.
 
 Direct acquisition and provider feasibility are explicit milestones alongside release preparation. A future KiCad plugin can expose the same importer and acquisition workflow; it does not replace the standalone application.
+
+Category-move verification (2026-10-23): 230 regression tests ran, 229 passed and the existing Windows directory-symlink privilege test was skipped. Sixteen new tests cover both native layouts, sharing, collisions/manual edits, inherited dependants, source/destination races, backup/write/deletion rollback, subsequent updates/restoration, move-back and explicit GUI confirmation. A real NUP2105LT1G ZIP was extracted/imported/moved only in temporary libraries: KiCad 9.0.7 packed and KiCad 10.0.7 native-directory symbol/footprint SVG exports passed, and the moved STEP rendered with OpenCascade (612 triangles). Exact backups matched; the original ZIP and extracted input bytes were unchanged. A full interactive schematic/PCB/3D workflow remains a manual check.
+
+Removal/recovery verification (2026-10-23): 247 tests ran, 246 passed and one existing Windows directory-symlink privilege test was skipped. Seventeen new synthetic regressions cover both layouts, exact backups/recovery, sharing, inherited dependants, collisions/manual edits, history/dependency races, backup/write/deletion rollback, later packed appends, subsequent move/update/restore workflows, source-independent provenance and explicit GUI confirmation. Real NUP2105LT1G temporary import → removal → recovery returned all asset bytes exactly; KiCad 9.0.7 packed and KiCad 10.0.7 native-directory symbol/footprint SVG exports and STEP tessellation (612 triangles) passed. Original ZIP/input bytes, production libraries and user preferences were unchanged.

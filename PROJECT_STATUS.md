@@ -19,6 +19,8 @@ The loader has been extracted from the library repository into an independent ap
 - Import history browser with transactional per-import records, output hashes, file action classification and original ZIP provenance for new extractions.
 - Controlled in-place updates with explicit diffs/confirmation, stable names, backup manifests, history linkage and manual-edit/shared-asset protection.
 - Reviewed restoration of the latest component update, preserving packed-library siblings and backing up the current files before restoring.
+- Reviewed category moves for tracked components, with reference changes, shared-resource retention, source-file backups/removal and linked history in both native symbol formats.
+- Reviewed component removal and recovery, with shared-resource retention, verified backups, removal tombstones and source-independent recovery in both formats.
 
 ## Code map
 
@@ -36,16 +38,19 @@ The loader has been extracted from the library repository into an independent ap
 - `scripts/import_history.py`, `history_dialog.py`: provenance records and a history browser with reviewed restoration.
 - `scripts/component_updates.py`, `update_dialog.py`: tracked replacement planning, dependency checks and review/apply UI.
 - `scripts/component_restore.py`: verified backup restoration of the latest component update.
+- `scripts/component_lifecycle.py`: shared tracked-component verification and local ownership/reference checks.
+- `scripts/component_move.py`, `move_dialog.py`: tracked category relocation and destination selection.
+- `scripts/component_remove.py`: reviewed removal and verified recovery of removed components.
 - `scripts/verify_local.py`: optional real-export verification with temporary outputs.
 - `tests/`: synthetic core and GUI regression tests.
 
 ## Next milestones
 
-1. Complete a documented manual schematic/PCB/3D workflow check, including reviewed updates and restoration. Native directory loading passed KiCad 10.0.7 CLI verification; packed output separately passed KiCad 9.0.7. Continue real-world validation with SamacSys.
-2. Prepare a public alpha: choose an application licence, versioning and packaging, and document the supported import/update/restore scope. Managed category migration, removal and broader recovery remain separate lifecycle work.
-3. **Direct online component downloads:** public-source SamacSys feasibility review is documented in [docs/SAMACSYS_INTEGRATION.md](docs/SAMACSYS_INTEGRATION.md). Next obtain confirmation of a supported interface, authentication, access and integration terms; then add explicit manufacturer/package/variant selection, download progress/cancellation, safe local cache extraction and provenance. Route downloaded symbols, footprints and STEP models through existing review/validation; never import silently. Provider access/API feasibility is not assumed.
-4. **Keep manual Search online permanently**, even after direct downloads, to browse and choose other packages/variants. The current preferred SamacSys portal and Downloads handoff remain available. Manually check authenticated browser/download behaviour.
-5. Broaden the initial explicit LCSC/easyeda2kicad acquisition with more real-part coverage, provider-access clarification and eventual in-app result/package selection. The converter is a pinned loader dependency, with an advanced external override; its web interface is not claimed to be an official supported standalone API. Other providers remain future work.
+1. **Interface cleanup and visual polish**: simplify the main workflow and group advanced settings, then check resizing, readability and consistency while retaining English throughout.
+2. Complete a documented manual schematic/PCB/3D check, including updates, restoration, category moves and removal/recovery. Native KiCad 9.0.7 packed and KiCad 10.0.7 directory loading have passed CLI verification; broaden real-part coverage for SamacSys and LCSC.
+3. Prepare a public alpha: choose an application licence, versioning, packaging and dependency/source notices; document the supported lifecycle and recovery limits.
+4. **Direct online acquisition remains planned.** The initial explicit LCSC/easyeda2kicad download is implemented; broaden real-part coverage, clarify provider access and evaluate in-app result/package selection. For SamacSys, obtain confirmation of a supported interface, authentication, access and integration terms before implementing downloads. Findings and open questions are in [docs/SAMACSYS_INTEGRATION.md](docs/SAMACSYS_INTEGRATION.md). Downloaded assets must go through review and validation, without silent library imports.
+5. **Keep manual Search online permanently**, including the preferred SamacSys portal and Downloads handoff, to choose alternative packages/variants. Check authenticated browser/download behaviour manually.
 6. Evaluate KiCad plugin integration using the same core workflows; retain the standalone application.
 
 KiCad 9 can validate packed symbols and individual unpacked symbol files, but cannot establish native KiCad 10 directory compatibility. Tests do not replace component datasheet checks. Multi-file imports use rollback for I/O failures but are not crash-atomic.
@@ -75,7 +80,7 @@ Fourteen synthetic archive/GUI regression tests additionally cover extraction bo
 
 ## Next integration step
 
-Check KiCad setup is now available as a read-only diagnostic. Automatic library-table registration and changes to KiCad preferences are not implemented. Native KiCad 10.0.7 directory loading has now passed CLI verification (2026-10-22); the configuration report itself does not perform or establish CAD loading. Import history is implemented. Controlled updates are implemented with additional current-file/reference checks. Reviewed restoration of the latest update is now implemented. Initial-import undo, removal and managed category migration remain future work.
+Check KiCad setup is now available as a read-only diagnostic. Automatic library-table registration and changes to KiCad preferences are not implemented. Native KiCad 10.0.7 directory loading has now passed CLI verification (2026-10-22); the configuration report itself does not perform or establish CAD loading. Import history is implemented. Controlled updates are implemented with additional current-file/reference checks. Reviewed restoration of the latest update is now implemented. Reviewed category migration is now implemented (2026-10-23); initial-import undo and removal remain future work.
 
 ## Import history implementation
 
@@ -153,3 +158,26 @@ Successful imports now commit a new local metadata record alongside their assets
 - Retained subprocess cancellation/cache/review behaviour. Mode and override path are saved locally; missing dependencies explain how to update the loader environment.
 - Added converter attribution and the unmodified AGPL licence text shipped by the installed release. This is not completion of the full release/installer licence inventory or source-delivery requirements.
 - Validation: 214 regression tests, 213 passed and one existing Windows symlink-privilege skip. Four added tests cover own-environment resolution, ignoring legacy saved external paths by default, setup errors without launch and explicit override persistence. A live GUI C2040 download passed with no executable selection and no external venv, auto-selecting symbol/footprint/STEP into a temporary cache without importing. Production libraries and user preferences were unchanged; no Git operations were performed.
+
+## Reviewed category moves — 2026-10-23
+
+- Import history now offers **Move to category…** for the latest active component record. Destination selection leads to explicit review, diffs/warnings and confirmation. Settings changes or changed dependencies invalidate the reviewed plan.
+- Moves preserve names and the selected native format, copy/reuse destination footprint/STEP assets, change symbol/3D references and retain geometry/transforms. Other packed symbols are preserved; an empty packed source library and empty folders are retained. Differing destination files, duplicate symbols, manual edits, ambiguous history and inherited dependants are blocked.
+- Source footprint/model sharing is checked against active history and generated-library references. Shared files remain; unshared files are removed only after exact backups. External projects/libraries and already placed instances are not scanned or rewritten; users must review/reassign old nicknames in KiCad and register destination libraries as needed.
+- The move event preserves ZIP/acquisition provenance and records source changes as well as destination hashes. Current-component tracking retires the source identity; later sibling updates/restoration and moving back remain supported when checks pass. No automatic move undo, removal wizard or format conversion is included; Restore still applies only to updates.
+- Backup, destination, history and source-removal actions participate in I/O rollback under the output lock. Power loss remains non-atomic. No production libraries, preferences or Git state were modified.
+- Validation: **230 regression tests, 229 passed, one existing Windows symlink-privilege skip**. Sixteen new move tests cover preservation/sharing, collisions/manual changes, dependency races, backup/write/deletion failure recovery, update/restore after moves, source-independent move-back and GUI confirmation/settings guards.
+- Real NUP2105LT1G validation used only temporary extraction and separate temporary output roots. Both native layouts imported and moved successfully; exact backups and linked history matched. KiCad 9.0.7 packed and KiCad 10.0.7 native-directory symbol/footprint SVG exports passed; moved STEP tessellation produced 612 triangles. The downloaded ZIP and extracted inputs were unchanged. Interactive schematic-to-PCB reassignment remains a manual check.
+
+## Reviewed removal and recovery — 2026-10-23
+
+- Import history offers **Remove component…** for the latest active component and **Recover removed…** for its latest removal. Both use explicit review/confirmation, rebuild checks and settings-change guards. Opening/cancelling review does not write assets, history or backups.
+- Shared lifecycle verification is reused by moves and removals: recorded hashes/symbol fingerprints, native layouts, protected inputs, history and generated-library reference snapshots. Active history/reference sharing retains source footprint/model assets. Inherited dependants and unreadable/missing/manually edited assets block removal; external projects/libraries are not scanned or rewritten.
+- Removal backs up changed/deleted files before removing a selected packed definition or unpacked symbol and unshared footprint/STEP files. Other packed symbols, empty libraries and folders remain. A linked tombstone event retires the component; stale update/move/removal records cannot act on it.
+- Recovery verifies the latest removal, predecessor, manifest/hashes and current destinations. It preserves later recorded packed appends, restores exact component content and can reuse identical footprint/STEP files. Existing symbols, differing assets, edited/missing retained assets or damaged backups block recovery. Original ZIPs/exports are not required; provenance is retained. Recovered components can subsequently update/move/remove normally.
+- Writes, metadata, backups and deletions use the existing lock and I/O rollback. Recovery backs up an existing packed library first. Multi-file operations remain non-crash-atomic; no general multi-step undo, move undo, automatic backup cleanup or adoption of untracked components is added.
+- Seventeen new synthetic tests cover both layouts, sharing, manual edits/collisions, inherited dependants, races, backup/write/deletion failures, move/remove/recover/update integration, packed appends and GUI confirmation/settings guards.
+- Real NUP2105LT1G validation used temporary extraction and separate output roots only. Import → remove → recover returned every asset byte exactly; backups/history/provenance matched. KiCad 9.0.7 packed and KiCad 10.0.7 native-directory symbol/footprint SVG exports passed; STEP preview produced 612 triangles. The original ZIP and extracted inputs were unchanged; production libraries, user preferences and Git were untouched.
+- Next development priority: interface cleanup and visual polish. Broader interactive schematic/PCB/3D validation, release preparation and online-acquisition improvements remain on the roadmap.
+
+- Final regression suite: **247 tests, 246 passed, one existing Windows directory-symlink privilege skip**. The user also reported the preceding category-move feature validated; this does not substitute for the broader interactive CAD checklist.

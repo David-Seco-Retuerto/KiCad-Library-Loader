@@ -775,9 +775,11 @@ class App:
         if self.settings_error:
             messagebox.showerror("Cannot open history", "Correct the saved loader settings first.", parent=self.root)
             return
+        settings = self.settings
         return HistoryDialog(self.root, self.settings.output_root, self.restore_applied,
                              tuple(self.settings.sources.values()) + (self.repo / "Imports",),
-                             self.settings.model_variable)
+                             self.settings.model_variable, categories=settings.categories,
+                             model_path_mode=settings.model_path_mode, context_valid=lambda: self.settings == settings)
 
     def check_kicad_setup(self):
         if self.settings_error:
@@ -940,11 +942,16 @@ class App:
             messagebox.showerror("Cannot update component", str(exc), parent=self.root)
 
     def restore_applied(self, plan):
+        if plan.history.get("operation") == "move":
+            if self.settings.get_category(plan.history["category"]):
+                self.category.set(plan.history["category"])
         self.plan = None
         self.ack.set(False)
         self.update_import_button()
-        self.log_text("Component restored. History recorded.\n" + "\n".join(plan.info) +
-                      f"\nBackup of replaced files: {plan.backup_directory}\nReview placed instances in KiCad before updating the schematic or PCB.")
+        message = {"move": "Component moved", "remove": "Component removed", "recover": "Component recovered"}.get(plan.history.get("operation"), "Component restored")
+        backup = f"\nBackup: {plan.backup_directory}" if plan.backup_directory else ""
+        self.log_text(message + ". History recorded.\n" + "\n".join(plan.info) + backup +
+                      "\nReview placed instances in KiCad before updating the schematic or PCB.")
 
     def update_applied(self, plan):
         self.plan = None

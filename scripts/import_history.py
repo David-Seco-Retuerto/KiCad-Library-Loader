@@ -64,6 +64,28 @@ def read_acquisition(folder):
         return None
 
 
+def component_identity(record):
+    return (record["symbol"].casefold(), record["category"], record["library_name"], record["symbol_format"])
+
+
+def current_components(records):
+    """Newest active operation per identity, including move/removal tombstones."""
+    current = {}
+    for record in records:
+        current.setdefault(component_identity(record), None if record.get("operation") == "remove" else record)
+        if record.get("operation") == "move":
+            current.setdefault(component_identity(record["moved_from"]), None)
+    return current
+
+
+def latest_file_output(records, relative_path):
+    for record in records:
+        for item in (*record["outputs"], *record.get("file_changes", [])):
+            if item["relative_path"].casefold() == relative_path.casefold():
+                return item
+    return None
+
+
 def add_history_record(plan):
     if plan.history is None:
         return None
@@ -82,11 +104,20 @@ def add_history_record(plan):
         record["outputs"].append({"role": role, "relative_path": path.relative_to(root).as_posix(),
                                   "action": action, "sha256": hashlib.sha256(data).hexdigest(),
                                   "previous_sha256": hashlib.sha256(before).hexdigest() if before is not None else None})
-    record["source_acquisition"] = (record.get("source_acquisition") if record.get("operation") == "restore"
+    if plan.related_assets:
+        record["file_changes"] = []
+        for path, role in plan.related_assets.items():
+            before = plan.before[path]
+            data = None if path in plan.removals else plan.files.get(path, before)
+            record["file_changes"].append({"role": role, "relative_path": path.relative_to(root).as_posix(),
+                                           "action": "removed" if data is None else "updated" if path in plan.files else "reused",
+                                           "sha256": hashlib.sha256(data).hexdigest() if data is not None else None,
+                                           "previous_sha256": hashlib.sha256(before).hexdigest() if before is not None else None})
+    record["source_acquisition"] = (record.get("source_acquisition") if record.get("operation") in {"restore", "move", "remove", "recover"}
                                     else read_acquisition(record["input_root"]))
     origin = Path(record["input_root"]) / ORIGIN_FILE
-    record["source_archive"] = record.get("source_archive") if record.get("operation") == "restore" else None
-    if record.get("operation") != "restore" and origin.is_file():
+    record["source_archive"] = record.get("source_archive") if record.get("operation") in {"restore", "move", "remove", "recover"} else None
+    if record.get("operation") not in {"restore", "move", "remove", "recover"} and origin.is_file():
         try:
             metadata = json.loads(origin.read_text(encoding="utf-8"))
             if isinstance(metadata, dict) and isinstance(metadata.get("archive_path"), str) and isinstance(metadata.get("archive_sha256"), str):
@@ -122,6 +153,17 @@ def read_history(output_root):
             for output in data["outputs"]:
                 if not isinstance(output, dict) or not all(isinstance(output.get(key), str) for key in ("role", "relative_path", "action", "sha256")):
                     raise ValueError("malformed output information")
+            if not isinstance(data.get("file_changes", []), list):
+                raise ValueError("malformed related file changes")
+            for item in data.get("file_changes", []):
+                if (not isinstance(item, dict) or not all(isinstance(item.get(key), str) for key in ("role", "relative_path", "action"))
+                        or not (isinstance(item.get("sha256"), str) or (item.get("sha256") is None and item["action"] == "removed"))):
+                    raise ValueError("malformed related file change")
+            if data.get("operation") == "move":
+                source = data.get("moved_from")
+                if not isinstance(source, dict) or not all(isinstance(source.get(key), str) for key in (
+                        "symbol", "category", "library_name", "symbol_format", "event_id")):
+                    raise ValueError("malformed move origin")
             data["record_path"] = str(path)
             records.append(data)
         except (OSError, ValueError) as exc:
@@ -150,6 +192,15 @@ def describe_record(record):
              f"Original ZIP: {archive_path or 'Not recorded (folder input or older ZIP cache)'}",
              f"Output root: {record.get('output_root', '')}", "", "Files at import time:"]
     lines.extend(f"{item['action'].title()} | {item['role']} | {item['relative_path']}" for item in record["outputs"])
+    if record.get("operation") == "remove":
+        lines += ["", "Component removed. Choose Recover removed… to review recovery from its verified backups."]
+    if record.get("file_changes"):
+        lines += ["", "Related file changes:"]
+        lines.extend(f"{item['action'].title()} | {item['relative_path']}" for item in record["file_changes"])
+    if record.get("operation") == "move":
+        source = record["moved_from"]
+        lines += ["", f"Moved from: {source['category']} | {source['library_name']} | {source['symbol_format']}",
+                  "The source identity is retired; use the latest destination record for further actions."]
     lines += ["", "Warnings acknowledged at import:", *record.get("warnings", [])]
     lines += ["", f"Record: {record.get('record_path', '')}",
               "This is an import-time record. Files may have changed afterwards; it does not certify their current state."]

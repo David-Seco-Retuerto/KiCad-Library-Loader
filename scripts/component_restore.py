@@ -5,7 +5,7 @@ from pathlib import Path
 import re
 
 from component_updates import digest, recorded_path, verify_replacement_dependencies
-from import_history import BACKUP_FOLDER, read_history
+from import_history import BACKUP_FOLDER, read_history, component_identity, current_components, latest_file_output
 from library_core import ImportErrorDetail, Plan, check_destination, children, dump, parse
 
 
@@ -61,7 +61,8 @@ def build_restore_plan(output_root, event_id, protected_roots=(), model_variable
     if selected is None or selected.get("operation") != "update":
         raise ImportErrorDetail("Select a recorded component update with a backup. Initial imports and restorations cannot be undone here.")
     latest = next(record for record in records if identity(record) == identity(selected))
-    if latest["event_id"] != event_id:
+    active = current_components(records).get(component_identity(selected))
+    if latest["event_id"] != event_id or active is None or active["event_id"] != event_id:
         raise ImportErrorDetail("This component has a later recorded operation. Only its latest update can be restored.")
     previous = next((record for record in records if record["event_id"] == selected.get("previous_event_id")), None)
     if previous is None or identity(previous) != identity(selected):
@@ -111,8 +112,7 @@ def build_restore_plan(output_root, event_id, protected_roots=(), model_variable
     for role, (path, item) in current_outputs.items():
         data = read_snapshot(path)
         if role == "symbol" and selected["symbol_format"] == "packed":
-            latest_file = next((entry for record in records for entry in record["outputs"]
-                                if recorded_path(root, entry["relative_path"]) == path), None)
+            latest_file = latest_file_output(records, path.relative_to(root).as_posix())
             if latest_file is None or digest(data) != latest_file["sha256"]:
                 raise ImportErrorDetail("Packed library was edited outside the recorded history. Manual edits are protected.")
         elif digest(data) != item["sha256"]:
@@ -154,7 +154,7 @@ def build_restore_plan(output_root, event_id, protected_roots=(), model_variable
     # Preserve provenance of the restored version, without rereading possibly replaced source exports.
     plan.history = {key: value for key, value in previous.items() if key not in {
         "record_path", "outputs", "event_id", "schema_version", "imported_at_utc", "warnings",
-        "backup_folder", "operation", "previous_event_id", "restored_from_event_id", "reverted_event_id", "restore_backup_folder"}}
+        "backup_folder", "operation", "previous_event_id", "restored_from_event_id", "reverted_event_id", "restore_backup_folder", "file_changes", "moved_from", "move_sources"}}
     plan.history.update({"operation": "restore", "previous_event_id": selected["event_id"],
                          "reverted_event_id": selected["event_id"], "restored_from_event_id": previous["event_id"],
                          "restore_backup_folder": folder_name, "symbol_sha256": symbol_hash,

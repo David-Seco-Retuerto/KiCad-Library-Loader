@@ -3,13 +3,16 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 
-from import_history import describe_record, read_history
+from import_history import describe_record, read_history, component_identity, current_components
+from move_dialog import MoveDialog
 from component_restore import build_restore_plan
+from component_remove import build_remove_plan, build_recover_plan
 from update_dialog import UpdateDialog
 
 
 class HistoryDialog:
-    def __init__(self, parent, output_root, applied=None, protected_roots=(), model_variable="DVL_LIB_ROOT"):
+    def __init__(self, parent, output_root, applied=None, protected_roots=(), model_variable="DVL_LIB_ROOT", categories=(), model_path_mode="variable", context_valid=lambda: True):
+        self.categories, self.model_path_mode, self.context_valid = tuple(categories), model_path_mode, context_valid
         self.applied = applied
         self.protected_roots = protected_roots
         self.model_variable = model_variable
@@ -20,7 +23,7 @@ class HistoryDialog:
         self.window.title("Import history")
         self.window.transient(parent)
         self.window.geometry("1080x740")
-        self.window.minsize(760, 520)
+        self.window.minsize(980, 520)
         frame = ttk.Frame(self.window, padding=16)
         frame.pack(fill="both", expand=True)
         frame.columnconfigure(0, weight=1)
@@ -46,6 +49,12 @@ class HistoryDialog:
         ttk.Label(frame, textvariable=self.status, wraplength=980).grid(row=5, column=0, sticky="w", pady=8)
         buttons = ttk.Frame(frame)
         buttons.grid(row=6, column=0, sticky="e")
+        self.move_button = ttk.Button(buttons, text="Move to category…", command=self.move_selected, state="disabled")
+        self.move_button.pack(side="left", padx=8)
+        self.remove_button = ttk.Button(buttons, text="Remove component…", command=self.remove_selected, state="disabled")
+        self.remove_button.pack(side="left", padx=8)
+        self.recover_button = ttk.Button(buttons, text="Recover removed…", command=self.recover_selected, state="disabled")
+        self.recover_button.pack(side="left", padx=8)
         self.restore_button = ttk.Button(buttons, text="Restore…", command=self.restore_selected, state="disabled")
         self.restore_button.pack(side="left", padx=8)
         ttk.Button(buttons, text="Copy details", command=self.copy_details).pack(side="left", padx=8)
@@ -57,7 +66,7 @@ class HistoryDialog:
     def reload(self):
         try:
             self.records, notices = read_history(self.output_root)
-            self.status.set(f"{len(self.records)} import record(s). " + (" ".join(notices) if notices else "Select an update and choose Restore… to review reverting it. Initial imports cannot be undone here."))
+            self.status.set(f"{len(self.records)} import record(s). " + (" ".join(notices) if notices else "Select the latest component record to move/remove, an update to restore, or a removal to recover. All changes require review."))
         except OSError as exc:
             self.records = []
             self.status.set(f"History could not be read: {exc}")
@@ -81,7 +90,14 @@ class HistoryDialog:
     def show_selected(self):
         selected = self.table.selection()
         record = self.visible.get(selected[0]) if selected else None
-        self.restore_button.configure(state="normal" if record and record.get("operation") == "update" else "disabled")
+        active = current_components(self.records).get(component_identity(record)) if record else None
+        can_move = active is not None and active["event_id"] == record["event_id"] and bool(self.categories)
+        is_active = active is not None and record is not None and active["event_id"] == record["event_id"]
+        self.remove_button.configure(state="normal" if is_active else "disabled")
+        latest = next((r for r in self.records if record and component_identity(r) == component_identity(record)), None)
+        self.recover_button.configure(state="normal" if record and record.get("operation") == "remove" and latest is record else "disabled")
+        self.move_button.configure(state="normal" if can_move else "disabled")
+        self.restore_button.configure(state="normal" if active is not None and record and active["event_id"] == record["event_id"] and record.get("operation") == "update" else "disabled")
         text = describe_record(record) if record else "No matching import records. New successful imports will appear here."
         self.details.configure(state="normal")
         self.details.delete("1.0", "end")
@@ -112,3 +128,44 @@ class HistoryDialog:
         except (OSError, ValueError, KeyError, IndexError, TypeError) as exc:
             messagebox.showerror("Cannot restore component", str(exc), parent=self.window)
             return None
+
+    def move_selected(self):
+        selected = self.table.selection()
+        record = self.visible.get(selected[0]) if selected else None
+        active = current_components(self.records).get(component_identity(record)) if record else None
+        if active is None or active["event_id"] != record["event_id"]:
+            return None
+        def applied(plan):
+            self.reload()
+            if self.applied:
+                self.applied(plan)
+        return MoveDialog(self.window, self.output_root, record, self.categories, applied,
+                          self.protected_roots, self.model_path_mode, self.model_variable, self.context_valid)
+
+    def review_lifecycle(self, operation):
+        selected = self.table.selection()
+        record = self.visible.get(selected[0]) if selected else None
+        if not record:
+            return None
+        event_id = record["event_id"]
+        def rebuild():
+            if not self.context_valid():
+                raise ValueError("Loader settings changed. Reopen Import history before applying this action.")
+            if operation == "remove":
+                return build_remove_plan(self.output_root, event_id, self.protected_roots, self.model_variable)
+            return build_recover_plan(self.output_root, event_id, self.protected_roots)
+        def applied(plan):
+            self.reload()
+            if self.applied:
+                self.applied(plan)
+        try:
+            return UpdateDialog(self.window, rebuild(), rebuild, applied)
+        except (OSError, ValueError, KeyError, IndexError, TypeError) as exc:
+            messagebox.showerror("Cannot remove component" if operation == "remove" else "Cannot recover component", str(exc), parent=self.window)
+            return None
+
+    def remove_selected(self):
+        return self.review_lifecycle("remove")
+
+    def recover_selected(self):
+        return self.review_lifecycle("recover")

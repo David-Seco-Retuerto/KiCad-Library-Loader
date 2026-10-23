@@ -5,7 +5,7 @@ import json
 from pathlib import Path, PurePosixPath
 import tempfile
 
-from import_history import read_history
+from import_history import read_history, component_identity, current_components, latest_file_output
 from library_core import (ImportErrorDetail, Plan, build_plan, check_destination, child, children,
                           dump, parse, prop, read_tree, require_kicad9, KICAD9_SYMBOL_VERSION)
 from library_layout import DEFAULT_CATEGORIES
@@ -42,6 +42,9 @@ def build_update_plan(workspace, inv, symbol_key, fp_key, model_key, category, m
     if not matching:
         raise ImportErrorDetail("No matching import history for this component, category and symbol format. Import an untracked component separately; automatic adoption and migration are not supported yet.")
     previous = matching[0]
+    active = current_components(records).get(component_identity(previous))
+    if active is None or active["event_id"] != previous["event_id"]:
+        raise ImportErrorDetail("This component was moved out of this category or removed. Choose its active category, or recover it from history before updating.")
     if previous.get("mpn") and previous["mpn"] != symbol.mpn:
         raise ImportErrorDetail("The source MPN differs from the tracked component. Review the selected symbol.")
     old = {}
@@ -60,8 +63,7 @@ def build_update_plan(workspace, inv, symbol_key, fp_key, model_key, category, m
         data = path.read_bytes()
         snapshots[path] = data
         if role == "symbol" and symbol_format == "packed":
-            latest = next((item for record in records for item in record["outputs"]
-                           if item["relative_path"] == path.relative_to(root).as_posix()), None)
+            latest = latest_file_output(records, path.relative_to(root).as_posix())
             if latest is None or digest(data) != latest["sha256"]:
                 raise ImportErrorDetail("Packed symbol library changed outside the recorded history. Manual changes are protected.")
         elif digest(data) != expected_hash:
@@ -207,4 +209,5 @@ def same_update_plan(first, second):
     return (first.files == second.files and first.before == second.before
             and first.warnings == second.warnings and first.backup_files == second.backup_files
             and first.dependency_directories == second.dependency_directories
-            and first.history == second.history)
+            and first.history == second.history and first.assets == second.assets
+            and first.removals == second.removals and first.related_assets == second.related_assets)
