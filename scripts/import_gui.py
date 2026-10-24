@@ -39,6 +39,8 @@ from library_core import (SYMBOL_FORMATS, ImportErrorDetail, associate, associat
 
 
 from kicad_tools import find_cli
+from gui_layout import build_main_window
+from report_text import report_lines
 
 
 class Drawing(ttk.Frame):
@@ -58,6 +60,9 @@ class Drawing(ttk.Frame):
         c = self.canvas
         c.delete("all")
         if not self.node:
+            c.create_text(max(c.winfo_width(), 300) / 2, max(c.winfo_height(), 200) / 2,
+                          text="Select a symbol to preview" if self.symbol else "Select a footprint to preview",
+                          fill="#a9b8ce", font=("Segoe UI", 12), tags=("empty-state",))
             return
         shapes = []
         pins = []
@@ -110,8 +115,9 @@ class Drawing(ttk.Frame):
                 return
             xmin, xmax = min(p[0] for p in points), max(p[0] for p in points)
             ymin, ymax = min(p[1] for p in points), max(p[1] for p in points)
-            width, height = max(c.winfo_width(), 300), max(c.winfo_height(), 200)
-            scale = min((width - 120) / max(xmax - xmin, 1), (height - 60) / max(ymax - ymin, 1))
+            width = c.winfo_width() if c.winfo_width() > 1 else 300
+            height = c.winfo_height() if c.winfo_height() > 1 else 200
+            scale = min(max(width - 120, 30) / max(xmax - xmin, 1), max(height - 60, 30) / max(ymax - ymin, 1))
 
             def project(p):
                 return ((p[0] - (xmin + xmax) / 2) * scale + width / 2,
@@ -223,109 +229,7 @@ class App:
         self.folder_summary = tk.StringVar()
         self.ack = tk.BooleanVar(value=False)
         self.cli = find_cli()
-        root.title("KiCad Library Loader")
-        root.geometry("1120x920")
-        root.minsize(860, 700)
-        root.columnconfigure(0, weight=1)
-        root.rowconfigure(0, weight=1)
-        main = ttk.Frame(root, padding=16)
-        main.grid(sticky="nsew")
-        main.columnconfigure(1, weight=1)
-        ttk.Label(main, text="Import component", font=("Segoe UI", 17, "bold")).grid(row=0, column=0, columnspan=3, sticky="w")
-        ttk.Label(main, textvariable=self.folder_summary, wraplength=1020).grid(row=1, column=0, columnspan=3, sticky="w", pady=(0, 12))
-        options = ttk.Frame(main)
-        options.grid(row=2, column=0, columnspan=3, sticky="ew")
-        top = ttk.Frame(options)
-        top.pack(fill="x")
-        ttk.Label(top, text="Source").pack(side="left")
-        source = ttk.Combobox(top, textvariable=self.source_choice, values=["Downloads", *PROVIDERS], state="readonly", width=15)
-        source.pack(side="left", padx=10)
-        source.bind("<<ComboboxSelected>>", lambda _: self.select_source_choice())
-        ttk.Button(top, text="Refresh", command=self.refresh_action).pack(side="left")
-        ttk.Button(top, text="Settings…", command=self.open_settings).pack(side="right")
-        ttk.Button(top, text="Categories…", command=self.open_categories).pack(side="right", padx=8)
-        ttk.Label(top, text="Category").pack(side="left", padx=(35, 10))
-        self.category_combo = ttk.Combobox(top, textvariable=self.category,
-                                         values=[category.name for category in self.settings.categories], state="readonly", width=18)
-        self.category_combo.pack(side="left")
-        format_row = ttk.Frame(options)
-        format_row.pack(fill="x", pady=(8, 4))
-        ttk.Label(format_row, text="Symbol output").pack(side="left")
-        self.format_combo = ttk.Combobox(format_row, textvariable=self.symbol_format,
-                                         values=list(SYMBOL_FORMATS.values()), state="readonly", width=27)
-        self.format_combo.pack(side="left", padx=10)
-        ttk.Button(format_row, text="Check KiCad setup…", command=self.check_kicad_setup).pack(side="right", padx=(10, 0))
-        ttk.Button(format_row, text="Prepare library folders…", command=self.prepare_library_folders).pack(side="right")
-        download_row = ttk.Frame(options)
-        download_row.pack(fill="x", pady=(4, 6))
-        ttk.Button(download_row, text="Open ZIP…", command=self.open_zip).pack(side="left", padx=(0, 10))
-        ttk.Button(download_row, text="Search online…", command=self.open_search).pack(side="left")
-        ttk.Button(download_row, text="Download LCSC…", command=self.open_lcsc_download).pack(side="left", padx=(10, 0))
-        ttk.Button(download_row, text="Use export folder…", command=self.use_export_folder).pack(side="left", padx=10)
-        ttk.Label(download_row, text="Review downloaded assets before importing.").pack(side="left")
-        self.download_frame = ttk.Frame(options)
-        ttk.Label(self.download_frame, text="Downloaded ZIP").pack(side="left")
-        self.download_combo = ttk.Combobox(self.download_frame, textvariable=self.download_zip, state="readonly")
-        self.download_combo.pack(side="left", fill="x", expand=True, padx=10)
-        self.download_combo.bind("<<ComboboxSelected>>", lambda _: self.load_download())
-        ttk.Button(self.download_frame, text="Load ZIP", command=self.load_download).pack(side="left")
-        ttk.Button(self.download_frame, text="Folder…", command=self.choose_downloads_folder).pack(side="left", padx=(10, 0))
-        ttk.Checkbutton(self.download_frame, text="Auto-refresh", variable=self.watch_downloads,
-                        command=self.toggle_download_watch).pack(side="left", padx=10)
-        ttk.Checkbutton(self.download_frame, text="Auto-load new ZIPs", variable=self.auto_load_zips,
-                        command=self.toggle_auto_zip).pack(side="left")
-        self.download_status_label = ttk.Label(options, textvariable=self.download_status, wraplength=1000)
-        self.asset_displays = {}
-        self.asset_choices = {}
-        self.combos = {}
-        for row, label, var in [(3, "Symbol", self.symbol), (4, "Footprint", self.fp), (5, "STEP model", self.model)]:
-            ttk.Label(main, text=label).grid(row=row, column=0, sticky="w", pady=6)
-            display = tk.StringVar()
-            self.asset_displays[label] = display
-            self.asset_choices[label] = {}
-            var.trace_add("write", lambda *_, label=label, var=var: self.sync_asset_display(label, var))
-            combo = ttk.Combobox(main, textvariable=display, state="readonly")
-            combo.grid(row=row, column=1, columnspan=2, sticky="ew", padx=(12, 0))
-            self.combos[label] = combo
-        for label in self.combos:
-            self.combos[label].bind("<<ComboboxSelected>>", lambda _, label=label: self.select_asset(label))
-        naming = ttk.Frame(main)
-        naming.grid(row=6, column=0, columnspan=3, sticky="ew", pady=10)
-        ttk.Label(naming, text="Footprint / 3D name").pack(side="left", padx=(0, 16))
-        for value in ("Original", "Suggestion", "Custom"):
-            ttk.Radiobutton(naming, text=value, variable=self.mode, value=value).pack(side="left", padx=5)
-        self.entry = ttk.Entry(main, textvariable=self.custom)
-        self.entry.grid(row=7, column=1, columnspan=2, sticky="ew", padx=(12, 0))
-        ttk.Label(main, text="Custom name").grid(row=7, column=0, sticky="w")
-        ttk.Label(main, textvariable=self.output, wraplength=950).grid(row=8, column=0, columnspan=3, sticky="w", pady=8)
-        ttk.Label(main, text="Simplified 2D previews (symbol units overlap; some graphics and pad shapes are omitted). Use KiCad SVG for an accurate view.", wraplength=1000).grid(row=9, column=0, columnspan=3, sticky="w")
-        previews = ttk.Frame(main)
-        previews.grid(row=10, column=0, columnspan=3, sticky="nsew", pady=8)
-        main.rowconfigure(10, weight=2)
-        previews.columnconfigure((0, 1), weight=1)
-        previews.rowconfigure(1, weight=1)
-        ttk.Label(previews, text="Symbol").grid(row=0, column=0)
-        ttk.Label(previews, text="Footprint").grid(row=0, column=1)
-        self.symbol_view, self.fp_view = Drawing(previews), Drawing(previews)
-        self.symbol_view.grid(row=1, column=0, sticky="nsew", padx=(0, 5))
-        self.fp_view.grid(row=1, column=1, sticky="nsew", padx=(5, 0))
-        buttons = ttk.Frame(main)
-        buttons.grid(row=11, column=0, columnspan=3, sticky="w")
-        ttk.Button(buttons, text="Symbol SVG (KiCad)", command=lambda: self.export_svg("symbol")).pack(side="left", padx=(0, 8))
-        ttk.Button(buttons, text="Footprint SVG (KiCad)", command=lambda: self.export_svg("footprint")).pack(side="left", padx=8)
-        ttk.Button(buttons, text="Preview STEP in 3D", command=self.open_model).pack(side="left", padx=8)
-        self.log = tk.Text(main, height=7, wrap="word", state="disabled", font=("Consolas", 9))
-        self.log.grid(row=12, column=0, columnspan=3, sticky="nsew", pady=10)
-        main.rowconfigure(12, weight=1)
-        ttk.Checkbutton(main, text="I have reviewed the warnings and associations", variable=self.ack).grid(row=13, column=0, columnspan=3, sticky="w")
-        actions = ttk.Frame(main)
-        actions.grid(row=14, column=0, columnspan=3, sticky="ew", pady=(8, 0))
-        ttk.Button(actions, text="Import history…", command=self.open_history).pack(side="left")
-        ttk.Button(actions, text="Review update…", command=self.review_update).pack(side="left", padx=8)
-        ttk.Frame(actions).pack(side="left", fill="x", expand=True)
-        ttk.Button(actions, text="Validate / review plan", command=self.validate).pack(side="left", padx=8)
-        self.import_button = ttk.Button(actions, text="Import", command=self.import_component, state="disabled")
-        self.import_button.pack(side="left")
+        build_main_window(self, Drawing, PROVIDERS, SYMBOL_FORMATS)
         for var in (self.category, self.mode, self.custom, self.symbol_format):
             var.trace_add("write", lambda *_: self.changed())
         self.ack.trace_add("write", lambda *_: self.update_import_button())
@@ -334,10 +238,46 @@ class App:
         root.bind("<Destroy>", self.download_watch_destroyed, add="+")
         self.schedule_download_watch()
 
+    def expand_preview(self, kind):
+        """Open the selected simplified drawing at a larger resizable size."""
+        view = self.symbol_view if kind == "symbol" else self.fp_view
+        window = tk.Toplevel(self.root)
+        window.title("Symbol preview" if kind == "symbol" else "Footprint preview")
+        window.transient(self.root)
+        window.geometry("1000x720")
+        window.minsize(500, 380)
+        frame = ttk.Frame(window, padding=16)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text="Simplified 2D preview. Symbol units may overlap; some graphics and pad shapes are omitted. Use KiCad SVG for exact graphics.", wraplength=850).pack(anchor="w", pady=(0, 12))
+        drawing = Drawing(frame)
+        drawing.pack(fill="both", expand=True)
+        drawing.show(view.node, symbol=kind == "symbol")
+        ttk.Button(frame, text="Close", command=window.destroy).pack(anchor="e", pady=(12, 0))
+        return window
+
+    def show_locations(self):
+        """Display complete paths without crowding the selection workflow."""
+        from tkinter.scrolledtext import ScrolledText
+        window = tk.Toplevel(self.root)
+        window.title("Library locations")
+        window.transient(self.root)
+        window.geometry("820x440")
+        window.minsize(580, 320)
+        frame = ttk.Frame(window, padding=20)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text="Library locations", font=("Segoe UI", 15, "bold")).pack(anchor="w")
+        text = ScrolledText(frame, wrap="word", font=("Consolas", 10), height=12)
+        text.pack(fill="both", expand=True, pady=14)
+        text.insert("end", self.folder_summary.get() + "\n\n" + self.output.get())
+        text.configure(state="disabled")
+        ttk.Button(frame, text="Close", command=window.destroy).pack(anchor="e")
+        return window
+
     def log_text(self, text):
         self.log.configure(state="normal")
         self.log.delete("1.0", "end")
-        self.log.insert("end", text)
+        for line, tag in report_lines(text):
+            self.log.insert("end", line + "\n", tag)
         self.log.configure(state="disabled")
 
     def persist(self):
@@ -384,11 +324,13 @@ class App:
 
     def update_downloads_panel(self):
         if self.source_choice.get() == "Downloads":
+            self.download_wrapper.grid()
             self.download_frame.pack(fill="x", pady=(4, 6))
             self.download_status_label.pack(fill="x")
         else:
             self.download_frame.pack_forget()
             self.download_status_label.pack_forget()
+            self.download_wrapper.grid_remove()
 
     def toggle_download_watch(self):
         if not self.watch_downloads.get():
@@ -769,7 +711,7 @@ class App:
         return FolderSettingsDialog(self.root, self.repo, self.settings, self.apply_settings)
 
     def open_categories(self):
-        return CategoriesDialog(self.root, self.repo, self.settings, self.apply_settings)
+        return CategoriesDialog(self.root, self.repo, self.settings, self.apply_settings, on_prepare=self.prepare_library_folders)
 
     def open_history(self):
         if self.settings_error:
@@ -875,7 +817,7 @@ class App:
                 self.asset_choices[label] = {}
                 self.asset_displays[label].set("")
             self.changed()
-            self.log_text(str(exc))
+            self.log_text(f"ERROR: {exc}")
 
     def select_symbol(self):
         symbol = self.inv.symbols.get(self.symbol.get()) if self.inv else None
@@ -904,6 +846,11 @@ class App:
             if symbol and self.selected_format() == "unpacked":
                 target /= f"{symbol.name}.kicad_sym"
             self.output.set(f"Footprint / 3D name: {name}\nSymbol output: {self.symbol_format.get()}\nDestination: {target}")
+            model = self.inv.models.get(self.model.get()) if self.inv else None
+            self.output_names["Symbol"].set(f"{category.library_name}:{symbol.name}" if symbol else "Not selected")
+            self.output_names["Footprint"].set(name + ".kicad_mod" if symbol and fp else "Skipped")
+            self.output_names["STEP model"].set(name + model.suffix.lower() if symbol and fp and model else "Skipped")
+            self.component_summary.set(symbol.name if symbol else "No component selected")
             prefix = f"Downloads: {self.downloads_folder}\n" if self.source_choice.get() == "Downloads" else ""
             self.folder_summary.set(prefix + f"Input ({self.source.get()}): {self.settings.sources[self.source.get()]}\nOutput: {self.settings.output_root}")
             self.symbol_view.show(symbol.node if symbol else None, True)
@@ -916,6 +863,23 @@ class App:
     def update_import_button(self):
         valid = self.plan is not None and (not self.plan.warnings or self.ack.get())
         self.import_button.configure(state="normal" if valid else "disabled")
+        symbol = self.inv.symbols.get(self.symbol.get()) if self.inv else None
+        fp = self.inv.footprints.get(self.fp.get()) if self.inv else None
+        model = self.inv.models.get(self.model.get()) if self.inv else None
+        self.model_button.configure(state="normal" if model else "disabled")
+        self.symbol_svg_button.configure(state="normal" if symbol and self.cli else "disabled")
+        self.fp_svg_button.configure(state="normal" if symbol and fp and self.cli else "disabled")
+        if self.settings_error:
+            status, detail = "Fix library settings", "Open Library tools → Settings… to correct the saved paths."
+        elif self.plan is not None:
+            status = "Ready to import" if valid else "Review warnings"
+            detail = f"{len(self.plan.warnings)} warning(s). Review the plan below before importing." if self.plan.warnings else "Plan validated. Import will not replace an existing component."
+        elif symbol:
+            status, detail = "Review required", "Validate the current selection to review its destination files and warnings."
+        else:
+            status, detail = "Select a component", "Load an export and select a symbol to start."
+        self.workflow_status.set(status)
+        self.review_status.set(detail)
 
     def make_plan(self, update=False):
         if self.settings_error:
@@ -980,7 +944,7 @@ class App:
             latest = self.make_plan()
             if (latest.files != self.plan.files or latest.before != self.plan.before or latest.warnings != self.plan.warnings or latest.directories != self.plan.directories):
                 self.validate()
-                self.log_text("Files changed. Review the new plan and import again.\n" + "\n".join(self.plan.info + self.plan.warnings) if self.plan else "Files changed. Validate again.")
+                self.log_text("Files changed. Review the new plan and import again.\n" + "\n".join(self.plan.info + ["WARNING: " + warning for warning in self.plan.warnings]) if self.plan else "Files changed. Validate again.")
                 return
             latest.history.update({"provider": self.source.get(),
                                    "input_mode": "downloads" if self.source_choice.get() == "Downloads" else "provider"})

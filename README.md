@@ -41,9 +41,23 @@ The migration copies only `.kicad-importer.json` into this application folder, r
 
 The default settings workspace is the application folder, independently of the directory from which you launch it. On a fresh installation, choose your library output root in **Settings…** before importing. Migrated settings continue to target the existing library. A different `--workspace` must already exist; it stores its own preferences. The PowerShell launcher also accepts `-Workspace C:\path\loader-settings`.
 
+## Main window
+
+The left column follows **01 Source → 02 Assets → 03 Destination**. Choose Downloads or a provider, open/search/acquire an export, select symbol/footprint/STEP independently, then choose category, KiCad compatibility and naming. Scroll the form to reach further options on shorter windows; Tab/Shift-Tab navigation reveals off-screen controls; mouse clicks and combobox popup focus do not reposition the form. **Refresh** (or F5) retains its source-specific behaviour, including loading the newest ZIP in Downloads. Switching away from Downloads hides its entire panel and releases its height.
+
+**Symbol and Footprint previews are visible together**, with **04 Review plan** directly below. Drag the horizontal divider to give more room to either area. **Expand…** opens a larger resizable simplified drawing without changing the selection or reviewed plan. **KiCad SVG** under each view keeps the accurate CLI/browser workflow; **Preview STEP in 3D** opens the integrated viewer. Simplified symbol units may overlap and some graphics/pad shapes are omitted; check actual geometry and alignment in KiCad.
+
+Destination shows three independent, read-only output values: **Symbol ID** (`nickname:symbol`), **Footprint file** and **STEP model file**. Original/Suggestion/Custom still control the shared footprint/STEP basename; Suggestion uses the component plus available geometry information. Extensions are shown explicitly, and omitted assets say Skipped. The symbol ID is independent of that naming choice. Full paths remain available in **Show locations…** and in the validated report.
+
+The header directly exposes **Settings…**, **Categories…**, **Check KiCad setup…** and **Import history…**. Folder preparation lives in Categories: **Save & prepare folders…** saves validated category changes, closes that editor and opens the existing reviewable folder preview. It does not create folders until **Create library folders** is explicitly confirmed there. Save categories alone and Cancel retain their existing behaviour.
+
+The review report separates locations, model path settings, symbol output, library registration, file writes/reuse, warnings and results with blank lines. Generic information uses black, success messages green, warnings orange and errors red. Text labels such as WARNING remain visible, so color is not the only signal. This formatting changes presentation only; source messages and the stored import plan are preserved.
+
+Acknowledgement and **Import component** stay visible below the workspace. Changing selections/settings invalidates the plan and acknowledgement as before; styling does not bypass validation, collision checks or explicit import. The minimum client size is 1000 × 680. At smaller sizes, use the form/report scrollbars, adjustable divider and expanded drawings as needed. No new dependency or saved UI preference is introduced.
+
 ## Folder settings
 
-Click **Settings…** next to the source controls to configure:
+Open **Settings…** to configure:
 
 | Setting | Initial default | Meaning |
 | --- | --- | --- |
@@ -59,7 +73,7 @@ Use **Browse…** to choose an existing folder, or type a new folder path. Relat
 
 Existing preferences without a `paths` section retain the original layout and their previous naming mode, custom name, source, category and output format. Invalid saved path settings are reported and block imports until corrected; the loader does not silently overwrite them with defaults.
 
-The main window displays the active input folder and output root. Always review the destination shown by **Validate / review plan**, especially after changing folders. Categories, library names and category-specific 3D folder names are configured separately under **Categories…**. The three top-level output subfolders remain `Symbols/`, `Footprints/` and `3DModels/`.
+Use **Show locations…** to see the complete active input folder, output root and generated destination paths. Always review the destination shown by **Validate / review plan**, especially after changing folders. Categories, library names and category-specific 3D folder names are configured separately under **Categories…**. The three top-level output subfolders remain `Symbols/`, `Footprints/` and `3DModels/`.
 
 ## Browser search and downloaded exports
 
@@ -184,7 +198,7 @@ Categories are saved in `.kicad-importer.json` alongside the path and naming pre
 
 ### Preparing folders before importing
 
-After saving categories and selecting **Symbol output** in the main window, click **Prepare library folders…**. The preview lists the output root, all configured categories, exact paths to create/reuse, and existing-library warnings. No folders are created until you click **Create library folders**. A warning acknowledgement is required when another symbol format is already present.
+After saving categories and selecting **KiCad compatibility** under Destination, open **Categories… → Save & prepare folders…**. The preview lists the output root, all configured categories, exact paths to create/reuse, and existing-library warnings. No folders are created until you click **Create library folders**. A warning acknowledgement is required when another symbol format is already present.
 
 For the example above:
 
@@ -224,10 +238,10 @@ This is the initial default layout. Each provider's actual input folder and the 
 3. Select or change the footprint and STEP independently. Switching the symbol or footprint recalculates associations, so review the selections afterwards. Empty means skip that asset. Symbol-only imports are supported; a STEP model requires a footprint.
 4. Select a configured destination category. The initial choices are **ICs**, **Connectors**, **Power** and **Misc**; use **Categories…** to define others.
 5. Choose **Symbol output**: **KiCad 10+ — Unpacked** (default) or **KiCad 9 — Packed**. Only the selected format is written. The choice persists across components and sessions, and switching it invalidates any previous plan.
-6. Choose a naming mode: **Original** uses the footprint's internal name, **Suggestion** (default) combines the MPN with the existing geometry code and description, and **Custom** enables a free-text field. Unknown dimensions are never invented. Naming mode, custom text, source, category and symbol output persist in `.kicad-importer.json`.
+6. Choose a naming mode: **Original** uses the footprint's internal name, **Suggestion** (default) combines the MPN with the existing geometry code, omitting redundant package aliases and vendor prose, and **Custom** enables a free-text field. Unknown dimensions are never invented. Naming mode, custom text, source, category and symbol output persist in `.kicad-importer.json`.
 7. Review the previews and click **Validate / review plan**. Review the selected format, exact symbol destination, registration instructions and warnings. When warnings are present, check **I have reviewed the warnings and associations** to enable **Import**. Changes to the selection or name invalidate the plan. Inputs and destinations are checked again before writing.
 
-The selected name applies to the footprint and copied STEP model. The symbol's name and Value remain unchanged. For example, the available AD7190 input produces `AD7190BRUZ_SOP65P640X120-24N_RU-24_TSSOP`. Names are limited to 140 characters and must be valid on Windows.
+The selected name applies to the footprint and copied STEP model. The symbol's name and Value remain unchanged. For example, the AD7190 input now suggests `AD7190BRUZ_SOP65P640X120-24N`; NUP2105LT1G suggests `NUP2105LT1G_SOT96P237X111-3N`, without appending SOT-23/TO-236 case aliases or revision text. A geometry name that repeats the MPN with different punctuation is included only once. For generic or component-only footprint names, a recognised package label from the description may be added; arbitrary description prose is not copied. Suggestions are at most 100 characters, with a stable hash suffix for overlong identities to avoid simple truncation collisions. Original/Custom retain their existing naming validation. Existing imports and controlled updates keep their tracked names; this rule applies to new suggestions, not automatic renaming.
 
 ## Previews
 
@@ -392,7 +406,7 @@ Existing projects, libraries outside the output root and already placed schemati
 
 ## Import history
 
-Click **Import history…** at the bottom of the main window to review imports into the current output library root. Records appear newest first and can be filtered by component, MPN, category, nickname or provider. Select a row to see its source files, original ZIP when recorded, selected symbol format, naming mode, destination files and acknowledged warnings. **Copy details** copies this summary for troubleshooting; **Refresh** rereads the local records.
+Click **Import history…** at the top right of the main window to review imports into the current output library root. Records appear newest first and can be filtered by component, MPN, category, nickname or provider. Select a row to see its source files, original ZIP when recorded, selected symbol format, naming mode, destination files and acknowledged warnings. **Copy details** copies this summary for troubleshooting; **Refresh** rereads the local records.
 
 History starts with successful imports made by this version. It does not reconstruct earlier imports or infer their original provider/download. Changing the output root displays that library's history, independently of the current source folder or workspace preferences.
 
@@ -408,7 +422,7 @@ History is local and excluded by the application's ignore rules and the original
 
 ## Checking your KiCad setup
 
-Click **Check KiCad setup…** beside the symbol output controls. Select the KiCad version settings folder, for example `%APPDATA%/kicad/10.0` on Windows. Detected version folders are listed newest first; **Browse…** handles custom locations. Select the current category or **All categories**, then **Run checks**.
+Open **Check KiCad setup…**. Select the KiCad version settings folder, for example `%APPDATA%/kicad/10.0` on Windows. Detected version folders are listed newest first; **Browse…** handles custom locations. Select the current category or **All categories**, then **Run checks**.
 
 Optionally select a **Project folder** to include that project's `sym-lib-table` and `fp-lib-table`. Entries in the project tables override global entries with the same nickname. Without a project selection, only global registrations are checked. Linked `Table` entries are inspected, with cycle and nesting protection.
 
@@ -527,3 +541,11 @@ Direct acquisition and provider feasibility are explicit milestones alongside re
 Category-move verification (2026-10-23): 230 regression tests ran, 229 passed and the existing Windows directory-symlink privilege test was skipped. Sixteen new tests cover both native layouts, sharing, collisions/manual edits, inherited dependants, source/destination races, backup/write/deletion rollback, subsequent updates/restoration, move-back and explicit GUI confirmation. A real NUP2105LT1G ZIP was extracted/imported/moved only in temporary libraries: KiCad 9.0.7 packed and KiCad 10.0.7 native-directory symbol/footprint SVG exports passed, and the moved STEP rendered with OpenCascade (612 triangles). Exact backups matched; the original ZIP and extracted input bytes were unchanged. A full interactive schematic/PCB/3D workflow remains a manual check.
 
 Removal/recovery verification (2026-10-23): 247 tests ran, 246 passed and one existing Windows directory-symlink privilege test was skipped. Seventeen new synthetic regressions cover both layouts, exact backups/recovery, sharing, inherited dependants, collisions/manual edits, history/dependency races, backup/write/deletion rollback, later packed appends, subsequent move/update/restore workflows, source-independent provenance and explicit GUI confirmation. Real NUP2105LT1G temporary import → removal → recovery returned all asset bytes exactly; KiCad 9.0.7 packed and KiCad 10.0.7 native-directory symbol/footprint SVG exports and STEP tessellation (612 triangles) passed. Original ZIP/input bytes, production libraries and user preferences were unchanged.
+
+Main-window refresh verification (2026-10-23): 254 tests ran, 253 passed and the existing Windows symlink-privilege test was skipped. Seven new GUI regressions cover review gating, preview/empty states, expanded drawings, read-only locations, grouped tools, minimum-window controls/report space and Downloads panel visibility. The final interface was also inspected on Windows with AD7190BRUZ in temporary settings/output workspaces, including minimum size and validation/report navigation. No production import was performed.
+
+Interface feedback revision (2026-10-23): simultaneous symbol/footprint previews and the report below replace the previous tabbed experiment. Output IDs/filenames are explicit; source buttons have visible borders; Settings/Categories/diagnostics/history are direct actions. The Downloads wrapper now releases its height when hidden. Report colors/blocks and Save & prepare folders routing have regression coverage.
+
+Final feedback-revision verification: **258 tests ran, 257 passed, one existing Windows directory-symlink privilege skip**. Desktop inspection confirmed bordered source buttons, simultaneous drawings, the report below, three explicit output values and grouped report text. Validation was exercised only in a temporary output workspace; no production import or Git operation was performed.
+
+Compact naming and focus fix (2026-10-23): repeated combobox posting/unposting no longer scrolls the form; only actual controls reached through Tab/Shift-Tab are revealed. Regression coverage exercises native Tk popups/ancestor focus and keyboard navigation, plus compact names, duplicate MPNs, generic package hints and bounded distinct long identities. Full suite: **264 tests, 263 passed and one existing Windows symlink-privilege skip**. A real NUP2105LT1G ZIP imported into temporary libraries in both formats with the compact basename and matching symbol/footprint/STEP references; the downloaded archive remained unchanged.

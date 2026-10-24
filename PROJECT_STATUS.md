@@ -6,6 +6,7 @@ The loader has been extracted from the library repository into an independent ap
 
 - Independent source and output folders; local SamacSys and LCSC provider adapters.
 - Independent asset selection, naming preferences, validation and collision protection.
+- Refreshed English main window: scrollable source/assets/destination cards, simultaneous symbol/footprint previews above a grouped/color-coded review report, expanded drawings, direct library tools and persistent import actions.
 - Packed KiCad 9 and unpacked KiCad 10+ symbol output with rewritten references.
 - Configurable categories and explicit folder preparation.
 - Symbol/footprint previews and an integrated STEP viewer.
@@ -25,6 +26,8 @@ The loader has been extracted from the library repository into an independent ap
 ## Code map
 
 - `scripts/import_gui.py`: Tk application and CLI entry point.
+- `scripts/gui_layout.py`: shared ttk presentation and main workflow layout, independent of import planning.
+- `scripts/report_text.py`: semantic report blocks and line colors; no import-plan mutations.
 - `scripts/library_core.py`: scanning, syntax, associations, plans and writes.
 - `scripts/library_layout.py`, `loader_settings.py`: categories, paths and validation.
 - `scripts/providers.py`: local provider contract and encoded browser search URLs.
@@ -46,7 +49,7 @@ The loader has been extracted from the library repository into an independent ap
 
 ## Next milestones
 
-1. **Interface cleanup and visual polish**: simplify the main workflow and group advanced settings, then check resizing, readability and consistency while retaining English throughout.
+1. Try the refreshed main window with real Downloads/provider workflows and confirm the new grouping and minimum-window layout are comfortable. The first interface cleanup is implemented; gather feedback before expanding the visual redesign to secondary dialogs.
 2. Complete a documented manual schematic/PCB/3D check, including updates, restoration, category moves and removal/recovery. Native KiCad 9.0.7 packed and KiCad 10.0.7 directory loading have passed CLI verification; broaden real-part coverage for SamacSys and LCSC.
 3. Prepare a public alpha: choose an application licence, versioning, packaging and dependency/source notices; document the supported lifecycle and recovery limits.
 4. **Direct online acquisition remains planned.** The initial explicit LCSC/easyeda2kicad download is implemented; broaden real-part coverage, clarify provider access and evaluate in-app result/package selection. For SamacSys, obtain confirmation of a supported interface, authentication, access and integration terms before implementing downloads. Findings and open questions are in [docs/SAMACSYS_INTEGRATION.md](docs/SAMACSYS_INTEGRATION.md). Downloaded assets must go through review and validation, without silent library imports.
@@ -181,3 +184,31 @@ Successful imports now commit a new local metadata record alongside their assets
 - Next development priority: interface cleanup and visual polish. Broader interactive schematic/PCB/3D validation, release preparation and online-acquisition improvements remain on the roadmap.
 
 - Final regression suite: **247 tests, 246 passed, one existing Windows directory-symlink privilege skip**. The user also reported the preceding category-move feature validated; this does not substitute for the broader interactive CAD checklist.
+
+## Main-window interface refresh — 2026-10-23
+
+- Source, independent asset selection and destination/naming now live in numbered left-column cards with scrolling and focus visibility. The right workspace gives full-height Symbol, Footprint and Review plan tabs. Validate/import explicitly select the report tab; acknowledgement/import controls remain outside the scrollable form.
+- Added an English ttk palette/type hierarchy, status summaries, empty preview states, asset/CLI-aware preview controls and a read-only locations window. Library tools groups existing folder/category/preparation/diagnostic actions; import history stays directly accessible. Existing download selection, watching/acquisition, updates and lifecycle controls remain available.
+- Expanded simplified drawings open in a separate resizable window without invalidating selection/confirmation. Canvas geometry fits smaller visible panes. Approximation limits and exact SVG alternatives remain explicit; STEP rendering and native import formats are unchanged.
+- Visual iteration caught an unreadably short report in a split layout at minimum size; final tabs give both report and drawing the full available height. Seven GUI regressions cover review gating/invalidation, empty previews/tabs, menu routing, non-mutating locations/expanded views, minimum-window reachability and Downloads visibility. Existing tests continue to cover actual temporary imports and safety workflows.
+- Desktop inspection used AD7190BRUZ from a read-only provider folder and temporary settings/output roots only. No production library writes, saved user preference changes, vendor assets added to source, dependencies or Git operations were involved. This is a presentation change, not a new claim of full schematic/PCB validation.
+
+- Final verification: **254 tests ran, 253 passed, one existing Windows directory-symlink privilege test skipped**. Desktop checks of the final tabbed layout included a 1000 × 680 client window, Downloads controls and explicit validation opening the readable full-height report. Native CAD loading evidence from preceding changes remains separate from these presentation checks.
+
+## Interface feedback revision — 2026-10-23
+
+- Replaced the tabbed experiment with simultaneous symbol and footprint previews above an adjustable report pane, as requested. Expanded drawings and exact SVG controls remain available.
+- Fixed the leftover Source gap after leaving Downloads by hiding the entire wrapper, not just its packed children; repeated source-switch tests verify its height returns to baseline.
+- Destination shows the actual symbol ID and separate footprint/STEP filenames for Original, Suggestion and Custom, matching the planned asset names/extensions. Omitted files are clearly marked. Naming algorithms and native import formats are unchanged.
+- Added visible button borders. Settings, Categories, Check KiCad setup and Import history are direct header buttons. Categories now has Save & prepare folders: successful save is required before opening the existing folder preview; no implicit folder creation is added.
+- Main report text uses black generic information, green success, orange warnings and red errors. Blank lines separate paths, model configuration, symbols, registration, writes, warnings and results. Filename substrings do not determine severity; source messages and transaction/history data remain unchanged.
+- Existing GUI tests were adapted and four new regressions cover wrapper shrinking, names matching actual plans, report preservation/colors/spacing and save-before-preparation. Windows inspection used the read-only AD7190BRUZ input and temporary settings/output only. Production libraries, user preferences and Git remain untouched.
+
+Final feedback-revision verification: **258 tests ran, 257 passed, one existing Windows directory-symlink privilege skip**. Desktop inspection confirmed bordered source buttons, simultaneous drawings, the report below, three explicit output values and grouped report text. Validation was exercised only in a temporary output workspace; no production import or Git operation was performed.
+
+## Compact naming and combobox focus correction — 2026-10-23
+
+- Suggestions retain MPN + specific vendor geometry without appending redundant package aliases, case numbers or revision prose. Normalised duplicate MPN/geometry names collapse to one identity. Generic/component-only footprint names can use a recognised compact package label from their description. No dimensions or package identity are guessed from pad count.
+- Names exceeding 100 characters use a deterministic hash suffix instead of blind truncation; Original/Custom and tracked update naming behaviour remain unchanged. Existing library files are not renamed.
+- Combobox popup focus also reaches ancestor frames. Focus scrolling now requires keyboard Tab/Shift-Tab navigation and the event target to be the actual focused control. Mouse opening/closing of combos no longer scrolls; keyboard access still reveals off-screen fields. Key bindings respect the Windows/X11 difference.
+- Four naming tests and two GUI regressions were added. Final suite: **264 tests, 263 passed, one existing Windows directory-symlink privilege skip**. The real NUP2105LT1G ZIP produced NUP2105LT1G_SOT96P237X111-3N in temporary packed and unpacked imports with consistent internal references and an unchanged archive hash. No production libraries, user preferences or Git were changed.

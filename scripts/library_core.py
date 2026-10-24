@@ -228,14 +228,30 @@ def associate_model(inv, symbol, fp):
 
 def suggestion(symbol, fp):
     tree = read_tree(fp)
-    # Preserve the vendor geometry code; add only descriptions actually present.
+    mpn, geometry = slug(symbol.mpn), slug(str(tree[1]))
+    normalized = lambda value: re.sub(r"[^a-z0-9]", "", value.casefold())
+    same_part = bool(mpn) and normalized(mpn) == normalized(geometry)
+    bits = [mpn]
+    if geometry and not same_part:
+        bits.append(geometry)
+    # A specific geometry already identifies the package. Do not append vendor
+    # aliases, case drawing numbers, revision text or an entire description.
+    generic = geometry.upper() in {"GEOM", "FOOTPRINT", "PACKAGE", "UNNAMED", "UNKNOWN"}
     description = child(tree, "descr")
-    bits = [slug(symbol.mpn), slug(str(tree[1]))]
-    if description and len(description) > 1:
-        desc = slug(description[1])
-        if desc and desc not in bits:
-            bits.append(desc[:45])
-    return "_".join(dict.fromkeys(bits))[:140].rstrip(".")
+    if (same_part or generic) and description and len(description) > 1:
+        text = str(description[1])
+        package = re.search(r"\b(TSSOP|VSSOP|HTSSOP|SOIC|SSOP|MSOP|QSOP|SOT|SOP|QFN|DFN|QFP|TQFP|LQFP|BGA|LGA|DIP)(?:[- ]?(\d+))?\b", text, re.IGNORECASE)
+        if package:
+            pins = package[2]
+            if pins is None:
+                pin_match = re.search(r"\b(\d+)[- ]?(?:pins?|leads?)\b", text, re.IGNORECASE)
+                pins = pin_match[1] if pin_match else None
+            bits.append(package[1].upper() + ("-" + pins if pins else ""))
+    name = "_".join(dict.fromkeys(part for part in bits if part))
+    if len(name) > 100:
+        # Keep long user/vendor identities distinct rather than truncating aliases.
+        name = name[:90].rstrip("_.-") + "_" + hashlib.sha256(name.encode("utf-8")).hexdigest()[:8]
+    return name
 
 
 @dataclass

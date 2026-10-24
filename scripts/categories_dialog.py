@@ -7,8 +7,9 @@ from library_layout import DEFAULT_CATEGORIES, LibraryCategory, validate_categor
 
 
 class CategoriesDialog:
-    def __init__(self, parent, workspace, settings, on_save):
+    def __init__(self, parent, workspace, settings, on_save, on_prepare=None):
         self.workspace, self.settings, self.on_save = workspace, settings, on_save
+        self.on_prepare = on_prepare
         self.categories = list(settings.categories)
         self.window = tk.Toplevel(parent)
         self.window.title("Library Loader · Categories")
@@ -42,11 +43,14 @@ class CategoriesDialog:
         edits.grid(row=7, column=0, columnspan=3, sticky="w", pady=8)
         for label, command in [("New", self.new), ("Add category", self.add), ("Update selected", self.update), ("Remove selected", self.remove)]:
             ttk.Button(edits, text=label, command=command).pack(side="left", padx=(0, 8))
-        ttk.Label(frame, text="After saving, use Prepare library folders… in the main window to review and create the selected output layout.", wraplength=740).grid(row=8, column=0, columnspan=3, sticky="w", pady=(0, 12))
+        ttk.Label(frame, text="Save categories to keep the configuration, or Save & prepare folders… to review folder creation. No folders are created until confirmed in the preview.", wraplength=740).grid(row=8, column=0, columnspan=3, sticky="w", pady=(0, 12))
         actions = ttk.Frame(frame)
         actions.grid(row=9, column=0, columnspan=3, sticky="ew")
         ttk.Button(actions, text="Restore default categories", command=self.restore_defaults).pack(side="left")
         ttk.Button(actions, text="Cancel", command=self.window.destroy).pack(side="right")
+        if on_prepare is not None:
+            self.prepare_button = ttk.Button(actions, text="Save & prepare folders…", command=lambda: self.save(prepare=True))
+            self.prepare_button.pack(side="right", padx=10)
         ttk.Button(actions, text="Save categories", command=self.save).pack(side="right", padx=10)
         self.render()
         self.window.grab_set()
@@ -121,7 +125,7 @@ class CategoriesDialog:
         self.render()
         self.new()
 
-    def save(self):
+    def save(self, prepare=False):
         try:
             if any((self.name.get(), self.library_name.get(), self.model_folder.get())):
                 index = self.selected_index()
@@ -133,6 +137,8 @@ class CategoriesDialog:
             messagebox.showerror("Categories not saved", str(exc), parent=self.window)
             return
         self.window.destroy()
+        if prepare and self.on_prepare:
+            return self.on_prepare()
 
 
 class FolderPreviewDialog:
