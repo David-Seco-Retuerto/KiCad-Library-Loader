@@ -41,6 +41,7 @@ from library_core import (SYMBOL_FORMATS, ImportErrorDetail, associate, associat
 from kicad_tools import find_cli
 from gui_layout import build_main_window
 from report_text import report_lines
+from runtime_support import default_workspace, frozen
 
 
 class Drawing(ttk.Frame):
@@ -1017,9 +1018,13 @@ class App:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--workspace", "--repo", dest="repo", type=Path,
-                        default=Path(__file__).resolve().parents[1],
+                        default=None,
                         help="Existing folder for local preferences and initial default paths (--repo is an alias).")
     args = parser.parse_args()
+    if args.repo is None:
+        args.repo = default_workspace()
+        if frozen():
+            args.repo.mkdir(parents=True, exist_ok=True)
     if not args.repo.is_dir():
         parser.error("The workspace must be an existing folder. Configure source and output folders using Settings.")
     root = tk.Tk()

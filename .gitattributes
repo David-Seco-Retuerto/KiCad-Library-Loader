@@ -1,0 +1,4 @@
+# Keep source checkouts consistent across native release builds.
+* text=auto eol=lf
+# Preserve the exact upstream notice bytes recorded in provenance hashes.
+licenses/** -text

@@ -1,6 +1,7 @@
 """Main-window presentation; import planning and safety remain in the application."""
 import tkinter as tk
 from tkinter import ttk
+from app_version import VERSION
 
 
 BG = "#f3f6fa"
@@ -56,7 +57,7 @@ def card(parent, title, subtitle=None):
 def build_main_window(app, drawing, providers, symbol_formats):
     root = app.root
     app.style = configure_style(root)
-    root.title("KiCad Library Loader")
+    root.title(f"KiCad Library Loader {VERSION}")
     width, height = min(1280, root.winfo_screenwidth() - 60), min(880, root.winfo_screenheight() - 100)
     root.geometry(f"{max(1000, width)}x{max(680, height)}")
     root.minsize(1000, 680)

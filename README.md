@@ -4,9 +4,27 @@ A Python/Tkinter application for importing native KiCad symbols, footprints and 
 
 This is the standalone application. Your KiCad libraries and provider downloads can live in separate folders; no library repository or vendor assets are bundled. The source remains in `scripts/`, with tests in `tests/`. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the code map and remaining work.
 
-## Installation
+## Source alpha preparation
 
-Python 3.10 or newer with Tcl/Tk is required. On Windows, enable Tcl/Tk in the Python installer.
+The source-only alpha can be prepared with `python tools/source_release.py`. This creates a whitelisted source archive, content report and SHA-256 checksum under `dist/source-release/`; it does not publish or run Git. Installation instructions are below. See [draft release notes](docs/RELEASE_NOTES_0.1.0-alpha.1.md) and [manual acceptance checks](docs/ALPHA_TESTING.md).
+
+## Portable alpha candidates (Windows and Linux)
+
+Version **0.1.0-alpha.1** is being prepared for both platforms. Local candidate builds are not yet published/audited releases; see [the release checklist](docs/RELEASING.md).
+
+- **Windows x86_64:** extract the complete ZIP into a writable folder and run `KiCad-Library-Loader.exe`.
+- **Linux x86_64:** extract the complete tar.gz and run `./KiCad-Library-Loader`. The current build was tested on Ubuntu 24.04 under WSLg (glibc 2.39); glibc, libgcc and libstdc++ are system prerequisites. Older glibc, musl/Alpine, ARM and other desktop setups are not established compatible.
+- Keep `_internal` and `kicad-loader-worker` next to the main executable. The minimal SDK package includes its Python runtime, Tk, native STEP reader and converter; users do not install a venv or a C++ compiler. KiCad itself is not included.
+- Normal portable launches store preferences, cache and default library output under `data` next to the executable. Configure library/input locations in Settings before importing. `--workspace PATH` selects an existing alternative folder. Moving the portable does not rewrite saved absolute source/output paths.
+- No personal preferences, download caches, history/backups or provider CAD assets are shipped. Source and notices accompany each minimal SDK candidate, including full OCCT source and exact converter/build-tool sdists. Independent-runner and owner acceptance checks remain before publication. Legacy OCP bundles remain development-only.
+
+## Licence and authorship
+
+Copyright (C) 2026 **David-Seco-Retuerto**. The loader is licensed under **GNU AGPL version 3 (AGPL-3.0-only)**; see [LICENSE](LICENSE) and [AUTHORS.md](AUTHORS.md). Third-party packages retain their own licences and attribution; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). CAD assets downloaded by users have separate provider terms.
+
+## Installation from source
+
+Python 3.10–3.14 with Tcl/Tk is required by the pinned STEP dependency. The current test environments use Python 3.11 on Windows and 3.12 on Linux. On Windows, enable Tcl/Tk in the Python installer.
 
 Run all commands in this document from the **repository root**, not from `scripts/`. Dependencies are listed in [`requirements.txt`](requirements.txt), and regression tests live in [`tests/`](tests/).
 
@@ -27,6 +45,18 @@ Alternatively, run `powershell -File .\start_gui.ps1`; it prefers the applicatio
 ```
 
 `--workspace` (or its compatibility alias `--repo`) selects the existing folder that holds local preferences and supplies the initial default paths. It does not have to contain `Imports/`: open **Settings…** to select exports and a library elsewhere. No Git repository is required at the selected output location.
+
+For Linux source use, install your distribution's Python Tk/venv prerequisites, then:
+
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python scripts/import_gui.py
+# Alternatively, after setup:
+sh ./start_gui.sh
+```
+
+On the validated Ubuntu 24.04 build environment, prerequisites were `python3-tk`, `python3-venv` and `binutils` (the last is for PyInstaller builds). Do not copy a Windows virtual environment to Linux.
 
 ## Moving from the embedded loader
 
@@ -464,7 +494,7 @@ The application ignores local preferences, environments, locks, temporary files,
 
 Libraries saved outside this application folder belong to their own workspace. The loader does not change their Git configuration or ignore rules. Review vendor assets and their licences before staging or publishing; version control remains user-managed.
 
-Ignore rules do not untrack previously committed files. Review `git ls-files` and the applicable vendor licences before publishing. Dependencies are installed from their packages rather than vendored into this repository; their own licences continue to apply. Choose a licence for your application code before publishing it.
+Ignore rules do not untrack previously committed files. Review `git ls-files` and the applicable vendor licences before publishing. Dependencies are installed from their packages rather than vendored into this repository; their own licences continue to apply. The application licence is AGPL-3.0-only. Use the minimal native SDK release recipe and complete independent-runner/owner acceptance checks before publishing binaries.
 
 ## Future expansion
 

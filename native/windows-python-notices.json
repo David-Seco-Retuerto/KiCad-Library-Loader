@@ -1,0 +1,166 @@
+{
+  "python_version": "3.11.9",
+  "runtime": {
+    "openssl": "OpenSSL 3.0.13 30 Jan 2024",
+    "zlib": "1.3.1",
+    "tcl": "8.6.12"
+  },
+  "components": [
+    {
+      "name": "bzip2",
+      "repository": "python/cpython-source-deps",
+      "ref": "bzip2-1.0.8",
+      "commit": "05301997b2f9590f49c672cf3dfd3d3dfa7ad521",
+      "notice_files": [
+        {
+          "upstream_path": "LICENSE",
+          "file": "licenses/upstream/windows-python/bzip2/LICENSE",
+          "url": "https://raw.githubusercontent.com/python/cpython-source-deps/05301997b2f9590f49c672cf3dfd3d3dfa7ad521/LICENSE",
+          "sha256": "c6dbbf828498be844a89eaa3b84adbab3199e342eb5cb2ed2f0d4ba7ec0f38a3"
+        }
+      ]
+    },
+    {
+      "name": "libffi",
+      "repository": "python/cpython-source-deps",
+      "ref": "libffi-3.4.4",
+      "commit": "73b247f34ef3ae1859b8c2c34d321d34ebc5db15",
+      "notice_files": [
+        {
+          "upstream_path": "LICENSE",
+          "file": "licenses/upstream/windows-python/libffi/LICENSE",
+          "url": "https://raw.githubusercontent.com/python/cpython-source-deps/73b247f34ef3ae1859b8c2c34d321d34ebc5db15/LICENSE",
+          "sha256": "2c9c2acb9743e6b007b91350475308aee44691d96aa20eacef8e199988c8c388"
+        }
+      ]
+    },
+    {
+      "name": "xz",
+      "repository": "python/cpython-source-deps",
+      "ref": "xz-5.2.5",
+      "commit": "c6bc0c612605622aaef101a33a751f9de2ecc193",
+      "notice_files": [
+        {
+          "upstream_path": "AUTHORS",
+          "file": "licenses/upstream/windows-python/xz/AUTHORS",
+          "url": "https://raw.githubusercontent.com/python/cpython-source-deps/c6bc0c612605622aaef101a33a751f9de2ecc193/AUTHORS",
+          "sha256": "72d7a7ee8a4eaca5d0b53f20609eff95d5e6f9e155ecce98127414b8215b0b15"
+        },
+        {
+          "upstream_path": "COPYING",
+          "file": "licenses/upstream/windows-python/xz/COPYING",
+          "url": "https://raw.githubusercontent.com/python/cpython-source-deps/c6bc0c612605622aaef101a33a751f9de2ecc193/COPYING",
+          "sha256": "bcb02973ef6e87ea73d331b3a80df7748407f17efdb784b61b47e0e610d3bb5c"
+        },
+        {
+          "upstream_path": "COPYING.GPLv2",
+          "file": "licenses/upstream/windows-python/xz/COPYING.GPLv2",
+          "url": "https://raw.githubusercontent.com/python/cpython-source-deps/c6bc0c612605622aaef101a33a751f9de2ecc193/COPYING.GPLv2",
+          "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643"
+        },
+        {
+          "upstream_path": "COPYING.GPLv3",
+          "file": "licenses/upstream/windows-python/xz/COPYING.GPLv3",
+          "url": "https://raw.githubusercontent.com/python/cpython-source-deps/c6bc0c612605622aaef101a33a751f9de2ecc193/COPYING.GPLv3",
+          "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+        },
+        {
+          "upstream_path": "COPYING.LGPLv2.1",
+          "file": "licenses/upstream/windows-python/xz/COPYING.LGPLv2.1",
+          "url": "https://raw.githubusercontent.com/python/cpython-source-deps/c6bc0c612605622aaef101a33a751f9de2ecc193/COPYING.LGPLv2.1",
+          "sha256": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551"
+        }
+      ]
+    },
+    {
+      "name": "zlib",
+      "repository": "python/cpython-source-deps",
+      "ref": "zlib-1.3.1",
+      "commit": "4dc98e1909830e2bdc2a9cc2236e3c5d5037335b",
+      "notice_files": [
+        {
+          "upstream_path": "LICENSE",
+          "file": "licenses/upstream/windows-python/zlib/LICENSE",
+          "url": "https://raw.githubusercontent.com/python/cpython-source-deps/4dc98e1909830e2bdc2a9cc2236e3c5d5037335b/LICENSE",
+          "sha256": "845efc77857d485d91fb3e0b884aaa929368c717ae8186b66fe1ed2495753243"
+        }
+      ]
+    },
+    {
+      "name": "openssl",
+      "repository": "python/cpython-source-deps",
+      "ref": "openssl-3.0.13",
+      "commit": "a5c15eb94f2878e44ffc74086b0cd2ea8db55488",
+      "notice_files": [
+        {
+          "upstream_path": "AUTHORS.md",
+          "file": "licenses/upstream/windows-python/openssl/AUTHORS.md",
+          "url": "https://raw.githubusercontent.com/python/cpython-source-deps/a5c15eb94f2878e44ffc74086b0cd2ea8db55488/AUTHORS.md",
+          "sha256": "5076ca441daef7fb35e904c2ac070880c7b3d58300a5a6aecac41e8f525f4412"
+        },
+        {
+          "upstream_path": "LICENSE.txt",
+          "file": "licenses/upstream/windows-python/openssl/LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/python/cpython-source-deps/a5c15eb94f2878e44ffc74086b0cd2ea8db55488/LICENSE.txt",
+          "sha256": "7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a"
+        },
+        {
+          "upstream_path": "external/perl/Text-Template-1.56/LICENSE",
+          "file": "licenses/upstream/windows-python/openssl/external/perl/Text-Template-1.56/LICENSE",
+          "url": "https://raw.githubusercontent.com/python/cpython-source-deps/a5c15eb94f2878e44ffc74086b0cd2ea8db55488/external/perl/Text-Template-1.56/LICENSE",
+          "sha256": "9837f05336ef3cbacb6a96e1672a0426d81ad01191f214b8d48e22ca62338181"
+        },
+        {
+          "upstream_path": "util/perl/OpenSSL/copyright.pm",
+          "file": "licenses/upstream/windows-python/openssl/util/perl/OpenSSL/copyright.pm",
+          "url": "https://raw.githubusercontent.com/python/cpython-source-deps/a5c15eb94f2878e44ffc74086b0cd2ea8db55488/util/perl/OpenSSL/copyright.pm",
+          "sha256": "04213b69dbebc8ba0dd8a6216af1d9422f9b63619c1cf2f1d8aa107b83bbb608"
+        }
+      ]
+    },
+    {
+      "name": "tcl-tk",
+      "repository": "python/cpython-bin-deps",
+      "ref": "tcltk-8.6.12.1",
+      "commit": "0db2b3830eb40d5211ab6258a8d931d065d29522",
+      "notice_files": [
+        {
+          "upstream_path": "amd64/lib/tk8.6/demos/license.terms",
+          "file": "licenses/upstream/windows-python/tcl-tk/amd64/lib/tk8.6/demos/license.terms",
+          "url": "https://raw.githubusercontent.com/python/cpython-bin-deps/0db2b3830eb40d5211ab6258a8d931d065d29522/amd64/lib/tk8.6/demos/license.terms",
+          "sha256": "0d1e4405f6273f091732764ed89b57066be63ce64869be6c71ea337dc4f2f9b5"
+        },
+        {
+          "upstream_path": "amd64/lib/tk8.6/license.terms",
+          "file": "licenses/upstream/windows-python/tcl-tk/amd64/lib/tk8.6/license.terms",
+          "url": "https://raw.githubusercontent.com/python/cpython-bin-deps/0db2b3830eb40d5211ab6258a8d931d065d29522/amd64/lib/tk8.6/license.terms",
+          "sha256": "0d1e4405f6273f091732764ed89b57066be63ce64869be6c71ea337dc4f2f9b5"
+        },
+        {
+          "upstream_path": "arm64/lib/tk8.6/demos/license.terms",
+          "file": "licenses/upstream/windows-python/tcl-tk/arm64/lib/tk8.6/demos/license.terms",
+          "url": "https://raw.githubusercontent.com/python/cpython-bin-deps/0db2b3830eb40d5211ab6258a8d931d065d29522/arm64/lib/tk8.6/demos/license.terms",
+          "sha256": "0d1e4405f6273f091732764ed89b57066be63ce64869be6c71ea337dc4f2f9b5"
+        },
+        {
+          "upstream_path": "arm64/lib/tk8.6/license.terms",
+          "file": "licenses/upstream/windows-python/tcl-tk/arm64/lib/tk8.6/license.terms",
+          "url": "https://raw.githubusercontent.com/python/cpython-bin-deps/0db2b3830eb40d5211ab6258a8d931d065d29522/arm64/lib/tk8.6/license.terms",
+          "sha256": "0d1e4405f6273f091732764ed89b57066be63ce64869be6c71ea337dc4f2f9b5"
+        },
+        {
+          "upstream_path": "win32/lib/tk8.6/demos/license.terms",
+          "file": "licenses/upstream/windows-python/tcl-tk/win32/lib/tk8.6/demos/license.terms",
+          "url": "https://raw.githubusercontent.com/python/cpython-bin-deps/0db2b3830eb40d5211ab6258a8d931d065d29522/win32/lib/tk8.6/demos/license.terms",
+          "sha256": "0d1e4405f6273f091732764ed89b57066be63ce64869be6c71ea337dc4f2f9b5"
+        },
+        {
+          "upstream_path": "win32/lib/tk8.6/license.terms",
+          "file": "licenses/upstream/windows-python/tcl-tk/win32/lib/tk8.6/license.terms",
+          "url": "https://raw.githubusercontent.com/python/cpython-bin-deps/0db2b3830eb40d5211ab6258a8d931d065d29522/win32/lib/tk8.6/license.terms",
+          "sha256": "0d1e4405f6273f091732764ed89b57066be63ce64869be6c71ea337dc4f2f9b5"
+        }
+      ]
+    }
+  ]
+}

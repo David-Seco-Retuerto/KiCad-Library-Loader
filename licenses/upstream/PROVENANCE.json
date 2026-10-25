@@ -1,0 +1,25 @@
+{
+  "scope": "Partial upstream notice evidence; not a complete bundled-native audit.",
+  "files": [
+    {
+      "file": "OCCT-7.9.3-LGPL-2.1.txt",
+      "url": "https://raw.githubusercontent.com/Open-Cascade-SAS/OCCT/V7_9_3/LICENSE_LGPL_21.txt",
+      "sha256": "e237fa56668030e928551ddd60f05df5fe957f75eab874bbd017e085ed722e7c"
+    },
+    {
+      "file": "OCCT-7.9.3-exception.txt",
+      "url": "https://raw.githubusercontent.com/Open-Cascade-SAS/OCCT/V7_9_3/OCCT_LGPL_EXCEPTION.txt",
+      "sha256": "04580a884ea6cea294402649ff7b5cbb167d47462d1340a4ed33e550db10a81b"
+    },
+    {
+      "file": "OCP-Apache-2.0.txt",
+      "url": "https://raw.githubusercontent.com/CadQuery/OCP/d69b064/LICENSE",
+      "sha256": "a13caea71627202ad33cc4cafafdd18e667e16716488f8d9c568127121fb89fd"
+    },
+    {
+      "file": "ocp-build-system-Apache-2.0.txt",
+      "url": "https://raw.githubusercontent.com/CadQuery/ocp-build-system/df2c31c25b8fce57c497895aa514e9c3550c9f02/LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-# Python >= 3.10. The importer and 2D previews use the standard library.
+# Python >= 3.10, < 3.15 (pinned STEP binding requirement). The importer and 2D previews use the standard library.
 # Tkinter comes with the standard Windows Python installer (enable Tcl/Tk).
 # Optional: installed KiCad/kicad-cli for exact SVG previews.
 # STEP preview: OpenCascade without the large VTK dependency.

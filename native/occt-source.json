@@ -1,0 +1,10 @@
+{
+  "name": "Open CASCADE Technology",
+  "version": "7.9.3",
+  "commit": "a016080bf6738d6aeae020badee4e888ad1540a5",
+  "url": "https://codeload.github.com/Open-Cascade-SAS/OCCT/tar.gz/a016080bf6738d6aeae020badee4e888ad1540a5",
+  "sha256": "c533f2667b59921bd6bd40ce82e7b9900b0289ccc731af5fdeeba097de80ef0f",
+  "archive": "occt-7.9.3.tar.gz",
+  "licence": "LGPL-2.1 with OCCT exception",
+  "patches": []
+}

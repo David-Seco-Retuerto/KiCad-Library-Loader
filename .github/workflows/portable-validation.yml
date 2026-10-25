@@ -1,0 +1,118 @@
+name: Portable validation
+on:
+  workflow_dispatch:
+    inputs:
+      live_download:
+        description: Acquire C2040 for a temporary LCSC integration check
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        if: runner.os == 'Windows'
+        with:
+          python-version: '3.11.9'
+      - name: Prepare Windows environment
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          python -m venv .venv
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          .venv\Scripts\python.exe -m pip install -r requirements-build.txt
+          exit $LASTEXITCODE
+      - name: Build Windows STEP SDK
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ./tools/build_native_step.ps1 -Jobs 2
+      - name: Build and verify Windows portable
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $sdk = Get-ChildItem .native-build/windows-x86_64 -Directory | Sort-Object Name -Descending | Select-Object -First 1
+          $arguments = @('tools/build_portable.py', '--native-sdk', (Join-Path $sdk.FullName 'sdk'))
+          if ('${{ inputs.live_download }}' -eq 'true') { $arguments += '--online-smoke' }
+          .venv\Scripts\python.exe @arguments
+          exit $LASTEXITCODE
+      - name: Prepare Linux environment
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk python3-venv build-essential cmake ninja-build xvfb
+          python3 -m venv .venv
+          .venv/bin/python -m pip install -r requirements-build.txt
+      - name: Build Linux STEP SDK
+        if: runner.os == 'Linux'
+        run: .venv/bin/python tools/build_native_step.py --jobs 2
+      - name: Build and verify Linux portable
+        if: runner.os == 'Linux'
+        run: |
+          sdk=$(find "$HOME/.cache/kicad-library-loader/native/linux-x86_64" -mindepth 2 -maxdepth 2 -type d -name sdk | sort | tail -n 1)
+          flags=()
+          if [ '${{ inputs.live_download }}' = 'true' ]; then flags+=(--online-smoke); fi
+          xvfb-run -a .venv/bin/python tools/build_portable.py --native-sdk "$sdk" "${flags[@]}"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: portable-${{ matrix.os }}
+          if-no-files-found: error
+          path: |
+            dist/*/*/KiCad-Library-Loader-*.zip
+            dist/*/*/KiCad-Library-Loader-*.tar.gz
+            dist/*/*/verification.json
+            dist/*/*/*-content-audit.json
+            dist/*/*/SHA256SUMS
+  launch:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: portable-${{ matrix.os }}
+          path: artifacts
+      - name: Launch Windows artifact on a separate runner
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $archive = Get-ChildItem artifacts -Recurse -Filter '*-windows-x86_64.zip' | Select-Object -First 1
+          $folder = Join-Path $env:RUNNER_TEMP 'portable extracted test'
+          Expand-Archive -LiteralPath $archive.FullName -DestinationPath $folder
+          $app = Join-Path $folder 'KiCad-Library-Loader'
+          foreach ($name in @('PYTHONHOME','PYTHONPATH','VIRTUAL_ENV')) { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
+          $env:PATH = (Join-Path $env:SystemRoot 'System32') + ';' + $env:SystemRoot
+          & (Join-Path $app 'kicad-loader-worker.exe') --self-test
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $report = Join-Path $env:RUNNER_TEMP 'portable-smoke.json'
+          $process = Start-Process -FilePath (Join-Path $app 'KiCad-Library-Loader.exe') -ArgumentList ('--smoke-test "' + $report + '"') -Wait -PassThru -WindowStyle Hidden
+          if ($process.ExitCode) { exit $process.ExitCode }
+          if (-not (Get-Content -Raw -LiteralPath $report | ConvertFrom-Json).passed) { throw 'Portable smoke test failed' }
+      - name: Launch Linux artifact on a separate runner
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+          archive=$(find artifacts -name '*-linux-x86_64.tar.gz' | head -n 1)
+          folder="$RUNNER_TEMP/portable extracted test"
+          mkdir -p "$folder"
+          tar -xzf "$archive" -C "$folder"
+          app="$folder/KiCad-Library-Loader"
+          env -u PYTHONHOME -u PYTHONPATH -u VIRTUAL_ENV PATH=/usr/bin:/bin "$app/kicad-loader-worker" --self-test
+          xvfb-run -a env -u PYTHONHOME -u PYTHONPATH -u VIRTUAL_ENV PATH=/usr/bin:/bin "$app/KiCad-Library-Loader" --smoke-test "$RUNNER_TEMP/portable-smoke.json"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: launch-evidence-${{ matrix.os }}
+          if-no-files-found: error
+          path: ${{ runner.temp }}/portable-smoke.json

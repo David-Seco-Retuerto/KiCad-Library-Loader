@@ -11,6 +11,7 @@ The loader has been extracted from the library repository into an independent ap
 - Configurable categories and explicit folder preparation.
 - Symbol/footprint previews and an integrated STEP viewer.
 - Persistent local preferences and a non-overwriting settings migration utility.
+- Native Windows/Linux portable candidate builds with isolated helpers, packaged runtime, writable data folder, source archives, checksums and frozen smoke verification.
 - Browser search for SamacSys / Component Search Engine and LCSC, explicit export-folder selection and new-asset notices on refresh.
 - Open ZIP for native KiCad downloads, selective extraction into an ignored persistent cache, and review/import through either output format.
 - Downloads source with a newest-first ZIP list, main Refresh loading the newest ZIP, optional passive auto-refresh and session-only automatic loading of stable new native ZIP arrivals.
@@ -26,6 +27,8 @@ The loader has been extracted from the library repository into an independent ap
 ## Code map
 
 - `scripts/import_gui.py`: Tk application and CLI entry point.
+- `scripts/runtime_support.py`, `portable_entry.py`, `portable_worker.py`, `portable_smoke.py`: portable state, isolated processes and offline frozen-runtime checks.
+- `tools/build_portable.py`, `packaging/portable.spec`: native multi-executable bundles, source delivery, notices and archive checksums.
 - `scripts/gui_layout.py`: shared ttk presentation and main workflow layout, independent of import planning.
 - `scripts/report_text.py`: semantic report blocks and line colors; no import-plan mutations.
 - `scripts/library_core.py`: scanning, syntax, associations, plans and writes.
@@ -51,7 +54,7 @@ The loader has been extracted from the library repository into an independent ap
 
 1. Try the refreshed main window with real Downloads/provider workflows and confirm the new grouping and minimum-window layout are comfortable. The first interface cleanup is implemented; gather feedback before expanding the visual redesign to secondary dialogs.
 2. Complete a documented manual schematic/PCB/3D check, including updates, restoration, category moves and removal/recovery. Native KiCad 9.0.7 packed and KiCad 10.0.7 directory loading have passed CLI verification; broaden real-part coverage for SamacSys and LCSC.
-3. Prepare a public alpha: choose an application licence, versioning, packaging and dependency/source notices; document the supported lifecycle and recovery limits.
+3. Finish the public alpha gate: application licence/author and native portable builds are now established; complete transitive native-library notices/corresponding-source review and clean-machine testing before publishing binaries.
 4. **Direct online acquisition remains planned.** The initial explicit LCSC/easyeda2kicad download is implemented; broaden real-part coverage, clarify provider access and evaluate in-app result/package selection. For SamacSys, obtain confirmation of a supported interface, authentication, access and integration terms before implementing downloads. Findings and open questions are in [docs/SAMACSYS_INTEGRATION.md](docs/SAMACSYS_INTEGRATION.md). Downloaded assets must go through review and validation, without silent library imports.
 5. **Keep manual Search online permanently**, including the preferred SamacSys portal and Downloads handoff, to choose alternative packages/variants. Check authenticated browser/download behaviour manually.
 6. Evaluate KiCad plugin integration using the same core workflows; retain the standalone application.
@@ -212,3 +215,32 @@ Final feedback-revision verification: **258 tests ran, 257 passed, one existing 
 - Names exceeding 100 characters use a deterministic hash suffix instead of blind truncation; Original/Custom and tracked update naming behaviour remain unchanged. Existing library files are not renamed.
 - Combobox popup focus also reaches ancestor frames. Focus scrolling now requires keyboard Tab/Shift-Tab navigation and the event target to be the actual focused control. Mouse opening/closing of combos no longer scrolls; keyboard access still reveals off-screen fields. Key bindings respect the Windows/X11 difference.
 - Four naming tests and two GUI regressions were added. Final suite: **264 tests, 263 passed, one existing Windows directory-symlink privilege skip**. The real NUP2105LT1G ZIP produced NUP2105LT1G_SOT96P237X111-3N in temporary packed and unpacked imports with consistent internal references and an unchanged archive hash. No production libraries, user preferences or Git were changed.
+
+## Windows/Linux portable candidates — 2026-10-24
+
+- User confirmed AGPL-3.0 for the loader and David-Seco-Retuerto as author/copyright holder. Added LICENSE (AGPL-3.0-only), AUTHORS and a shared 0.1.0-alpha.1 version; third-party attribution remains separate.
+- Added native multi-executable PyInstaller builds: windowed GUI plus console worker sharing the packaged runtime. Frozen STEP parsing and LCSC conversion no longer depend on a Python script path or a builder venv. Source-mode behaviour and advanced external converter overrides remain supported.
+- Portable state lives in data next to the executable; --workspace retains an explicit existing-directory override. Builds whitelist source files and exclude AGENTS, preferences, vendor caches, history/backups, Git and environments. Added deterministic application source archives, verified upstream converter sdist, available runtime notices and SHA-256 sums.
+- Windows x86_64/Python 3.11 and Ubuntu 24.04 WSLg x86_64/Python 3.12 builds passed synthetic GUI imports in both formats and STEP parsing through the frozen worker. Initial archived builds were extracted into new paths with spaces and passed those checks again, plus a real C2040 acquisition through each frozen converter. All generated assets stayed in temporary output.
+- Linux baseline is Ubuntu 24.04/glibc 2.39. This is native Linux/WSLg evidence, not proof for older distributions, musl/Alpine, ARM or every desktop. Cross-platform source hashes are checked independently from platform-specific binary archives.
+- Packages are explicitly local candidates with release_ready=false. Remaining gates: transitive native DLL/.so licence/source audit, clean-machine/desktop checks and the broader manual KiCad design workflow. No Git, tag, push or publishing operation was performed.
+
+- Final native build verification: Windows **269 tests run, 268 passed and one existing directory-symlink privilege skip**; Ubuntu/WSLg **269 passed**. Both final frozen candidates passed GUI/Tk loading, temporary packed/unpacked imports, isolated STEP meshing and real C2040 acquisition followed by temporary imports in both formats. Build reports record live_download=true, clean_machine=false and release_ready=false.
+
+## Release preparation follow-up (2026-10-24)
+
+- Added archive content/private-state checks and hashed native inventories; filename family hints are explicitly unverified rather than automatic legal approval. New portable builds include this evidence.
+- Preserved official OCCT/OCP/build-system notices with URL/hash provenance, and documented unresolved native component versions/source coverage in docs/NATIVE_DEPENDENCIES.md.
+- Added a separate source-only delivery tool, draft alpha release notes and a concrete manual KiCad acceptance checklist.
+- AGENTS.md is now ignored for future Git additions; existing Git tracking must still be reviewed manually by the owner.
+- Only the development Windows system and WSL are available. Clean-machine checks and full native source/notice review remain open; no binary release was authorised as ready or published.
+
+## Minimal native STEP release path (2026-10-24)
+
+- Added a small C++17 STEP-to-mesh helper with the same mesh limits/normalization as the source Python reader. Source installations retain OCP; minimal portable builds omit the opaque OCP wheel/image stack.
+- OCCT 7.9.3 sources are pinned by exact commit/SHA-256 and shipped whole with licences, exception and local build provenance; the SDK uses shared libraries and disabled third-party graphics/codecs.
+- Windows C++ tools were installed by the owner. Windows and persistent-cache Linux SDKs compiled successfully. Unicode conversion in the Windows helper was corrected with standard filesystem UTF-8 conversion. No OCCT source patches were applied.
+- Added native routing/SDK integrity/geometry tests, pinned Windows Python component notices and an exact Ubuntu runtime notice collector. Minimal Linux packages leave glibc/libgcc/libstdc++ as system prerequisites.
+- `/tmp` builds and the old WSL build venv disappeared between invocations; Linux build state now lives in `~/.cache/kicad-library-loader/`.
+- Added a manually dispatched GitHub Actions build/separate-runner launch workflow, pinned action commits and checked it with actionlint. It has not run and does not publish releases. Independent-runner and owner acceptance remain pending.
+- The owner retains all Git operations; no Git command, tag, push or publication was performed.

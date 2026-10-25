@@ -17,6 +17,7 @@ import tempfile
 import threading
 import tkinter as tk
 from tkinter import ttk
+from runtime_support import mesh_command
 
 
 def mesh_step(path):
@@ -125,7 +126,7 @@ class StepWindow:
         try:
             with tempfile.TemporaryDirectory(prefix="dvl-step-") as directory:
                 output = Path(directory) / "mesh.json"
-                result = subprocess.run([sys.executable, str(Path(__file__).resolve()), "--mesh", str(self.path), str(output)],
+                result = subprocess.run(mesh_command(self.path, output),
                                         capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
                                         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
                 if result.returncode or not output.exists():

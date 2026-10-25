@@ -16,6 +16,7 @@ import time
 from archive_import import cache_directory, MAX_ENTRIES, MAX_FILE_BYTES, MAX_TOTAL_BYTES
 from import_history import ACQUISITION_FILE, file_hash
 from library_core import associate, prop, scan_directory
+from runtime_support import frozen, bundled_worker
 
 
 class DownloadCancelled(ValueError):
@@ -49,6 +50,8 @@ def converter_path(value):
 
 def installed_converter(scripts_folder=None):
     """Resolve only the active Python environment, never an unrelated PATH tool."""
+    if scripts_folder is None and frozen():
+        return converter_path(str(bundled_worker()))
     folder = Path(scripts_folder if scripts_folder is not None else sysconfig.get_path("scripts"))
     name = "easyeda2kicad.exe" if os.name == "nt" else "easyeda2kicad"
     path = folder / name

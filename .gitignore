@@ -29,3 +29,9 @@ dist/
 
 # Local component update backups
 .kicad-loader-backups/
+
+# Local assistant instructions are not part of the public project.
+/AGENTS.md
+
+# Native dependency sources and compiler outputs stay local.
+/.native-build/
