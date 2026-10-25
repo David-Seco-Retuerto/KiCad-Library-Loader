@@ -47,3 +47,7 @@ The root holds generated compiler outputs; it does not change the application wo
 ## Visual Studio runtime notices
 
 The runtime collector discovers the installed third-party notice inside the selected Visual Studio installation, including Build Tools and Enterprise layouts. It prefers the matching edition and English (1033) when available, preserves the original file bytes and extension, and records its relative installed path and SHA-256 in `WINDOWS-RUNTIME.json`. It does not download a substitute notice or continue without one. Only the x64 release CRT from `VC/Redist/MSVC/<version>/x64/Microsoft.VC143.CRT` is copied; debug and nonredistributable directories remain excluded.
+
+## Build progress
+
+Every configure/build/install stage retains its complete `stage-<index>.log`. While a command is running, the builder prints its elapsed time, time since observed log growth and last compiler output every 15 seconds; completion includes duration and exit code. Silence alone does not establish a hung compiler. Stage 2 builds OCCT from source and can dominate the job. The workflow currently builds a fresh SDK on each run; no native SDK cache is configured.

@@ -77,6 +77,26 @@ class NativeBuildDiagnosticsTests(unittest.TestCase):
             self.assertIn("fatal error C1083", output.getvalue())
             self.assertNotIn("build line 0\n", output.getvalue())
 
+    def test_long_stage_reports_the_actual_compiler_output_while_running(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output = io.StringIO()
+            code = "import time; print('[1/2] Compiling synthetic source',flush=True); time.sleep(.3); print('[2/2] Done',flush=True)"
+            with redirect_stdout(output):
+                build.run_stage([sys.executable, "-u", "-c", code], Path(folder).resolve(), 1, 6, progress_interval=.05)
+            self.assertIn("running", output.getvalue())
+            self.assertIn("[1/2] Compiling synthetic source", output.getvalue())
+            self.assertIn("finished", output.getvalue())
+            self.assertIn("[2/2] Done", (Path(folder) / "stage-1.log").read_text())
+
+    def test_silent_stage_reports_silence_without_claiming_compiler_progress(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output = io.StringIO()
+            with redirect_stdout(output):
+                build.run_stage([sys.executable, "-c", "import time; time.sleep(.2)"], Path(folder).resolve(), 1, 6, progress_interval=.05)
+            self.assertIn("No compiler output yet.", output.getvalue())
+            self.assertIn("no new log bytes", output.getvalue())
+            self.assertEqual((Path(folder) / "stage-1.log").read_bytes(), b"")
+
     def test_successful_stage_keeps_full_log_without_failure_message(self):
         with tempfile.TemporaryDirectory() as folder:
             output = io.StringIO()

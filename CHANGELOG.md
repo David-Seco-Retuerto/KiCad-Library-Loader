@@ -2,6 +2,8 @@
 
 ## 0.1.0-alpha.1 — Unreleased
 
+Native builds report elapsed time, observed log inactivity and the last compiler line every 15 seconds, with full stage logs and completion durations retained.
+
 The review pane reserves three readable text lines using actual font metrics at minimum window size, including after font changes and divider movement.
 
 Update staging and temporary test workspaces resolve Windows short-path aliases consistently. Portable regressions fail fast, retain a full log and periodic stack dumps, and have a ten-minute timeout. Windows CI runs a regression preflight before compiling OCCT.

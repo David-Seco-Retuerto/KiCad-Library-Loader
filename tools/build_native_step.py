@@ -9,6 +9,7 @@ import platform
 import shutil
 import subprocess
 import tarfile
+import time
 import urllib.request
 import uuid
 
@@ -42,12 +43,38 @@ def extract_source(archive, destination):
     return roots[0]
 
 
-def run_stage(command, folder, index, count):
+def run_stage(command, folder, index, count, progress_interval=15):
     log = folder / f"stage-{index}.log"
     print(f"Stage {index + 1}/{count}: {log}", flush=True)
+    if progress_interval <= 0:
+        raise ValueError("The progress interval must be positive.")
+    started = last_output = time.monotonic()
+    previous_size = 0
     with log.open("w", encoding="utf-8") as output:
-        result = subprocess.run(command, cwd=folder, stdout=output, stderr=subprocess.STDOUT)
-    if result.returncode:
+        with subprocess.Popen(command, cwd=folder, stdout=output, stderr=subprocess.STDOUT) as process:
+            try:
+                while True:
+                    try:
+                        process.wait(timeout=progress_interval)
+                        break
+                    except subprocess.TimeoutExpired:
+                        now = time.monotonic()
+                        size = log.stat().st_size
+                        if size != previous_size:
+                            previous_size, last_output = size, now
+                        with log.open("rb") as stream:
+                            stream.seek(max(0, size - 8000))
+                            lines = stream.read().decode("utf-8", errors="replace").splitlines()
+                        latest = next((line for line in reversed(lines) if line.strip()), "No compiler output yet.")
+                        print(f"Stage {index + 1}/{count}: running {now - started:.0f}s; "
+                              f"no new log bytes for {now - last_output:.0f}s. Last output: {latest[-2000:]}", flush=True)
+            except BaseException:
+                process.kill()
+                process.wait()
+                raise
+            result_code = process.returncode
+    print(f"Stage {index + 1}/{count}: finished in {time.monotonic() - started:.1f}s (exit {result_code}).", flush=True)
+    if result_code:
         # Hosted CI runners disappear after the job; show the actual compiler
         # diagnostic in the console as well as preserving the complete log.
         with log.open("rb") as stream:
@@ -56,7 +83,7 @@ def run_stage(command, folder, index, count):
             tail = stream.read().decode("utf-8", errors="replace")
         print("Native build failure — last 80 log lines:", flush=True)
         print("\n".join(tail.splitlines()[-80:]), flush=True)
-        raise RuntimeError(f"Native build failed at stage {index + 1} (exit {result.returncode}); inspect {log}.")
+        raise RuntimeError(f"Native build failed at stage {index + 1} (exit {result_code}); inspect {log}.")
 
 
 def build(build_root=None, jobs=2, generator=None, resume=None):
