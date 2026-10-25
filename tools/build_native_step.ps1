@@ -1,4 +1,4 @@
-param([ValidateRange(1,16)][int]$Jobs = 4, [string]$Resume)
+param([ValidateRange(1,16)][int]$Jobs = 4, [string]$Resume, [string]$BuildRoot)
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent $PSScriptRoot
 $taskVswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
@@ -16,11 +16,16 @@ if ($Resume) {
     $taskResolvedResume = (Resolve-Path -LiteralPath $Resume).Path
     $taskResumeArgument = ' --resume "' + $taskResolvedResume + '"'
 }
+$taskBuildRootArgument = ''
+if ($BuildRoot) {
+    $taskResolvedBuildRoot = [System.IO.Path]::GetFullPath($BuildRoot)
+    $taskBuildRootArgument = ' --build-root "' + $taskResolvedBuildRoot + '"'
+}
 $taskLines = @(
     '@echo off',
     ('call "' + $taskDeveloper + '" -arch=x64 -host_arch=x64'),
     'if errorlevel 1 exit /b %errorlevel%',
-    ('"' + $taskPython + '" "' + (Join-Path $PSScriptRoot 'build_native_step.py') + '" --generator Ninja --jobs ' + $Jobs + $taskResumeArgument),
+    ('"' + $taskPython + '" "' + (Join-Path $PSScriptRoot 'build_native_step.py') + '" --generator Ninja --jobs ' + $Jobs + $taskResumeArgument + $taskBuildRootArgument),
     'exit /b %errorlevel%'
 )
 Set-Content -LiteralPath $taskBatch -Value $taskLines -Encoding ascii

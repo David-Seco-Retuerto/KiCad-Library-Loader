@@ -31,3 +31,15 @@ Checks cover synthetic box size and face winding, non-ASCII paths, invalid input
 Linux defaults to `~/.cache/kicad-library-loader/native`, a persistent native filesystem location. Keep the build Python environment there as well; `/tmp` was cleared between WSL invocations during verification and must not hold the only copy of completed builds.
 
 On Windows, `powershell -File tools/build_native_step.ps1 -Jobs 4` discovers the installed x64 compiler environment automatically. After changes to only the helper, `-Resume /absolute/existing/build` reuses the owned OCCT build; cached upstream sources must remain unchanged. Normal invocations create a fresh build directory. Logs record each configure/build/install stage. SDKs retain the compiler redistributable identity/hashes on Windows and the complete pinned OCCT archive on both platforms.
+
+## Windows build path length
+
+MSVC can reject a relative OCCT include when its full spelling reaches the Windows path limit, even if the normalized path is shorter and the header exists. The hosted workflow builds under `RUNNER_TEMP/kll-native` instead of the longer checkout directory, and collects diagnostics from that location. The upstream sources are unchanged.
+
+For a deeply nested local checkout, select a short build root explicitly:
+
+```powershell
+powershell -File tools/build_native_step.ps1 -Jobs 2 -BuildRoot C:\kll-build
+```
+
+The root holds generated compiler outputs; it does not change the application workspace or library output. The resulting SDK is under `<build-root>/windows-x86_64/<run>/sdk`. Supply that SDK path to `tools/build_portable.py --native-sdk` when packaging manually.
