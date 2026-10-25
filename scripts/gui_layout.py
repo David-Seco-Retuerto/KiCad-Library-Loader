@@ -273,6 +273,40 @@ def build_main_window(app, drawing, providers, symbol_formats):
     for tag, color in (("info", "#000000"), ("success", "#166534"), ("warning", "#b45309"), ("error", "#b91c1c")):
         app.log.tag_configure(tag, foreground=color)
 
+    review_size_job = None
+
+    def keep_review_readable():
+        nonlocal review_size_job
+        review_size_job = None
+        if not app.workspace_split.winfo_ismapped():
+            return
+        line_height = int(root.tk.call("font", "metrics", app.log.cget("font"), "-linespace"))
+        text_padding = 2 * app.log.winfo_pixels(app.log.cget("pady"))
+        minimum_log = 3 * line_height + text_padding
+        # Use requested sizes so caption wrapping and font/DPI differences are
+        # included without depending on stale child geometry during a resize.
+        minimum_review = review_card.winfo_reqheight() - app.log.winfo_reqheight() + minimum_log
+        last_sash = max(1, app.workspace_split.winfo_height() - minimum_review - 8)
+        if app.workspace_split.sashpos(0) > last_sash:
+            app.workspace_split.sashpos(0, last_sash)
+
+    def schedule_review_size(_=None):
+        nonlocal review_size_job
+        # Let ttk finish allocating both panes before moving its divider.
+        if review_size_job is None:
+            review_size_job = root.after_idle(keep_review_readable)
+
+    def cancel_review_size(event):
+        nonlocal review_size_job
+        if event.widget is app.workspace_split and review_size_job is not None:
+            root.after_cancel(review_size_job)
+            review_size_job = None
+
+    app.workspace_split.bind("<Configure>", schedule_review_size, add="+")
+    app.workspace_split.bind("<Destroy>", cancel_review_size, add="+")
+    review_card.bind("<Configure>", schedule_review_size, add="+")
+    review_caption.bind("<Configure>", schedule_review_size, add="+")
+
     footer = ttk.Frame(root, padding=(24, 14, 24, 18))
     footer.grid(row=2, column=0, sticky="ew")
     footer.columnconfigure(0, weight=1)

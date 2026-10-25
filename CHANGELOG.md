@@ -2,6 +2,8 @@
 
 ## 0.1.0-alpha.1 — Unreleased
 
+The review pane reserves three readable text lines using actual font metrics at minimum window size, including after font changes and divider movement.
+
 Update staging and temporary test workspaces resolve Windows short-path aliases consistently. Portable regressions fail fast, retain a full log and periodic stack dumps, and have a ten-minute timeout. Windows CI runs a regression preflight before compiling OCCT.
 
 Windows runtime notice discovery supports the selected Visual Studio edition instead of assuming Build Tools. Notice bytes, format, installed path and hash are retained for packaging.

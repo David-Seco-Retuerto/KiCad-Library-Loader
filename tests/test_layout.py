@@ -110,11 +110,38 @@ class LayoutTests(unittest.TestCase):
                 self.assertTrue(all(-1 <= y <= canvas.winfo_height() + 1 for y in coords[1::2]))
         app.validate()
         self.root.update()
-        self.assertGreater(app.log.winfo_height(), 45)
+        self.assert_report_lines_visible()
         self.assertTrue(app.symbol_view.winfo_viewable())
         self.assertTrue(app.fp_view.winfo_viewable())
         self.assertLess(app.symbol_view.winfo_rootx(), app.fp_view.winfo_rootx())
         self.assertGreater(app.log.winfo_rooty(), app.symbol_view.winfo_rooty() + app.symbol_view.winfo_height())
+        self.root.withdraw()
+
+    def assert_report_lines_visible(self):
+        log = self.app.log
+        log.yview_moveto(0)
+        self.root.update_idletasks()
+        line_height = int(self.root.tk.call("font", "metrics", log.cget("font"), "-linespace"))
+        padding = 2 * log.winfo_pixels(log.cget("pady"))
+        self.assertGreaterEqual(log.winfo_height() - padding, 3 * line_height)
+        third_line = log.dlineinfo(log.index("1.0 + 2 display lines"))
+        self.assertIsNotNone(third_line)
+        self.assertLessEqual(third_line[1] + third_line[3], log.winfo_height() - padding // 2)
+
+    def test_review_retains_readable_lines_after_font_changes_and_sash_drag(self):
+        app = self.app
+        self.root.geometry("1000x680+0+0")
+        self.root.deiconify()
+        for size in (10, 12, 14):
+            with self.subTest(font_size=size):
+                app.log.configure(font=("Consolas", size))
+                app.validate()
+                self.root.update()
+                app.workspace_split.sashpos(0, app.workspace_split.winfo_height() - 5)
+                self.root.update()
+                self.assert_report_lines_visible()
+                self.assertTrue(app.symbol_view.winfo_viewable())
+                self.assertTrue(app.fp_view.winfo_viewable())
         self.root.withdraw()
 
     def test_download_controls_show_and_hide_without_resetting_the_review(self):
