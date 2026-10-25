@@ -10,11 +10,10 @@ import json
 import math
 import os
 from pathlib import Path
-import queue
 import subprocess
 import sys
 import tempfile
-import threading
+import time
 import tkinter as tk
 from tkinter import ttk
 from runtime_support import mesh_command
@@ -109,9 +108,13 @@ class StepWindow:
         self.canvas.bind("<MouseWheel>", lambda e: self.scroll(1 if e.delta > 0 else -1))
         self.canvas.bind("<Button-4>", lambda _: self.scroll(1))
         self.canvas.bind("<Button-5>", lambda _: self.scroll(-1))
-        self.results = queue.Queue()
-        threading.Thread(target=self.load, daemon=True).start()
-        self.poll_job = self.window.after(80, self.poll)
+        self.process = None
+        self.reader_directory = None
+        self.reader_log = None
+        self.load_error = None
+        self.load()
+        if self.process is not None:
+            self.poll_job = self.window.after(80, self.poll)
 
     def on_destroy(self, event):
         if event.widget != self.window:
@@ -121,33 +124,73 @@ class StepWindow:
             if job is not None:
                 self.window.after_cancel(job)
         self.poll_job = self.pending = None
+        self.release_reader()
+
+    def release_reader(self):
+        # Called only from the Tk thread, including when the window is destroyed.
+        if self.process is not None:
+            if self.process.poll() is None:
+                self.process.terminate()
+                try:
+                    self.process.wait(timeout=.5)
+                except subprocess.TimeoutExpired:
+                    self.process.kill()
+                    self.process.wait(timeout=1)
+            self.process = None
+        if self.reader_log is not None:
+            self.reader_log.close()
+            self.reader_log = None
+        if self.reader_directory is not None:
+            self.reader_directory.cleanup()
+            self.reader_directory = None
+
+    def show_error(self, message):
+        self.load_error = message[-2000:]
+        self.status.set(self.load_error)
+        self.canvas.create_text(25, 25, text="STEP preview unavailable. See details below.", fill="white", anchor="nw")
 
     def load(self):
+        # Poll a child process from Tk instead of retaining Tk objects in a worker
+        # thread, where cyclic garbage collection can destroy a Tcl interpreter.
         try:
-            with tempfile.TemporaryDirectory(prefix="dvl-step-") as directory:
-                output = Path(directory) / "mesh.json"
-                result = subprocess.run(mesh_command(self.path, output),
-                                        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
-                                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-                if result.returncode or not output.exists():
-                    raise ValueError((result.stderr or result.stdout or "STEP reader failed.")[-2000:])
-                self.results.put((json.loads(output.read_text(encoding="utf-8")), None))
+            self.reader_directory = tempfile.TemporaryDirectory(prefix="dvl-step-")
+            folder = Path(self.reader_directory.name)
+            self.reader_output = folder / "mesh.json"
+            self.reader_log_path = folder / "reader.log"
+            self.reader_log = self.reader_log_path.open("wb")
+            self.reader_deadline = time.monotonic() + 60
+            self.process = subprocess.Popen(mesh_command(self.path, self.reader_output),
+                                            stdout=self.reader_log, stderr=subprocess.STDOUT,
+                                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         except Exception as exc:
-            self.results.put((None, str(exc)))
+            self.release_reader()
+            self.show_error(str(exc))
 
     def poll(self):
-        self.poll_job = None
-        if self.closed or not self.window.winfo_exists():
+        if self.poll_job is not None:
+            self.window.after_cancel(self.poll_job)
+            self.poll_job = None
+        if self.closed or self.process is None:
             return
-        try:
-            self.mesh, error = self.results.get_nowait()
-        except queue.Empty:
+        result = self.process.poll()
+        if result is None and time.monotonic() < self.reader_deadline:
             self.poll_job = self.window.after(80, self.poll)
             return
-        if error:
-            self.status.set(error)
-            self.canvas.create_text(25, 25, text="STEP preview unavailable. See details below.", fill="white", anchor="nw")
-        else:
+        try:
+            if result is None:
+                raise TimeoutError("STEP reader timed out after 60 seconds.")
+            if result or not self.reader_output.is_file():
+                with self.reader_log_path.open("rb") as stream:
+                    stream.seek(0, os.SEEK_END)
+                    stream.seek(max(0, stream.tell() - 8000))
+                    detail = stream.read().decode("utf-8", errors="replace")
+                raise ValueError(detail[-2000:] or "STEP reader failed.")
+            self.mesh = json.loads(self.reader_output.read_text(encoding="utf-8"))
+        except Exception as exc:
+            self.show_error(str(exc))
+        finally:
+            self.release_reader()
+        if self.mesh is not None:
             size = " × ".join(f"{v:.2f}" for v in self.mesh["size_mm"])
             self.status.set(f"{self.path.name} · {size} mm · {len(self.mesh['triangles']):,} triangles\n"
                             "Source model geometry only; footprint placement and original material colours are not shown.")

@@ -2,6 +2,8 @@
 
 ## 0.1.0-alpha.1 — Unreleased
 
+STEP preview now polls its child process on the Tk thread and cleans it up on close/timeout, avoiding Tcl interpreter collection from a background preview thread. Native build failures print compiler diagnostics and the validation workflow preserves build logs even after a failed job.
+
 First public alpha candidate: reviewed native KiCad 9/10 imports, ZIP intake, provider search, LCSC acquisition, 2D/STEP previews, managed history/update/restore/move/removal/recovery and portable Windows/Linux build support.
 
 Portable candidates require the build checks and release checklist in docs/RELEASING.md. No release is published by the build scripts.

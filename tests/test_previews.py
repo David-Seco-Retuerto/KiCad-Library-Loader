@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import tempfile
 import time
+import threading
 import tkinter as tk
 import unittest
 from unittest.mock import patch
@@ -72,6 +73,68 @@ class PinPreviewTests(unittest.TestCase):
                 viewer.assert_called_once_with(self.root, path)
 
 
+class StepReaderLifecycleTests(unittest.TestCase):
+    def setUp(self):
+        try:
+            self.root = tk.Tk()
+        except tk.TclError as exc:
+            self.skipTest(str(exc))
+        self.root.withdraw()
+        self.addCleanup(self.root.destroy)
+
+    def viewer(self, code):
+        with patch("step_preview.mesh_command", side_effect=lambda path, output: [sys.executable, "-c", code, str(output)]):
+            view = StepWindow(self.root, Path("synthetic model.step"))
+        view.window.withdraw()
+        return view
+
+    def wait_for_reader(self, view):
+        deadline = time.monotonic() + 10
+        while view.process is not None and time.monotonic() < deadline:
+            self.root.update()
+            time.sleep(.01)
+        self.assertIsNone(view.process, "STEP child process did not finish")
+
+    def test_reader_loads_without_a_tk_owning_background_thread(self):
+        mesh = {"vertices": [[0, 0, 0], [1, 0, 0], [0, 1, 0]], "triangles": [[0, 1, 2]], "size_mm": [2, 4, 6]}
+        code = "import pathlib,sys; pathlib.Path(sys.argv[1]).write_text(" + repr(json.dumps(mesh)) + ")"
+        with patch.object(threading, "Thread", side_effect=AssertionError("Preview must not launch a Python thread")):
+            view = self.viewer(code)
+            folder = Path(view.reader_directory.name)
+            self.wait_for_reader(view)
+        self.assertEqual(view.mesh, mesh)
+        self.assertFalse(folder.exists())
+        self.assertTrue(view.canvas.find_withtag("surface"))
+
+    def test_close_reaps_a_running_reader_and_removes_its_files(self):
+        view = self.viewer("import time; time.sleep(60)")
+        process, folder = view.process, Path(view.reader_directory.name)
+        self.assertIsNone(process.poll())
+        view.window.destroy()
+        self.assertTrue(view.closed)
+        self.assertIsNotNone(process.poll())
+        self.assertFalse(folder.exists())
+        self.assertIsNone(view.poll_job)
+
+    def test_timeout_reaps_reader_and_reports_a_readable_error(self):
+        view = self.viewer("import time; time.sleep(60)")
+        process, folder = view.process, Path(view.reader_directory.name)
+        view.reader_deadline = 0
+        view.poll()
+        self.assertIn("timed out", view.status.get())
+        self.assertIsNotNone(process.poll())
+        self.assertFalse(folder.exists())
+        self.assertIsNone(view.mesh)
+
+    def test_reader_failure_is_bounded_and_resources_are_released(self):
+        view = self.viewer("import sys; print('x'*5000, file=sys.stderr); sys.exit(2)")
+        folder = Path(view.reader_directory.name)
+        self.wait_for_reader(view)
+        self.assertEqual(len(view.load_error), 2000)
+        self.assertIsNone(view.mesh)
+        self.assertFalse(folder.exists())
+
+
 @unittest.skipUnless(importlib.util.find_spec("OCP"), "Install requirements.txt for STEP tests")
 class StepPreviewTests(unittest.TestCase):
     def setUp(self):
@@ -107,8 +170,7 @@ class StepPreviewTests(unittest.TestCase):
             deadline = time.monotonic() + 20
             while viewer.mesh is None and time.monotonic() < deadline:
                 root.update()
-                if not viewer.results.empty():
-                    viewer.poll()
+                if viewer.load_error:
                     break
                 time.sleep(.02)
             self.assertIsNotNone(viewer.mesh, viewer.status.get())

@@ -42,6 +42,23 @@ def extract_source(archive, destination):
     return roots[0]
 
 
+def run_stage(command, folder, index, count):
+    log = folder / f"stage-{index}.log"
+    print(f"Stage {index + 1}/{count}: {log}", flush=True)
+    with log.open("w", encoding="utf-8") as output:
+        result = subprocess.run(command, cwd=folder, stdout=output, stderr=subprocess.STDOUT)
+    if result.returncode:
+        # Hosted CI runners disappear after the job; show the actual compiler
+        # diagnostic in the console as well as preserving the complete log.
+        with log.open("rb") as stream:
+            stream.seek(0, os.SEEK_END)
+            stream.seek(max(0, stream.tell() - 24000))
+            tail = stream.read().decode("utf-8", errors="replace")
+        print("Native build failure — last 80 log lines:", flush=True)
+        print("\n".join(tail.splitlines()[-80:]), flush=True)
+        raise RuntimeError(f"Native build failed at stage {index + 1} (exit {result.returncode}); inspect {log}.")
+
+
 def build(build_root=None, jobs=2, generator=None, resume=None):
     lock = json.loads((ROOT / "native/occt-source.json").read_text(encoding="utf-8"))
     target = ("windows" if os.name == "nt" else "linux") + "-" + platform.machine().lower().replace("amd64", "x86_64")
@@ -99,12 +116,7 @@ def build(build_root=None, jobs=2, generator=None, resume=None):
                 [cmake, "--install", str(folder / "helper-build"), "--config", "Release"]]
     print(json.dumps({"build": str(folder), "sdk": str(install)}), flush=True)
     for index, command in enumerate(commands):
-        log = folder / f"stage-{index}.log"
-        print(f"Stage {index + 1}/{len(commands)}: {log}", flush=True)
-        with log.open("w", encoding="utf-8") as output:
-            result = subprocess.run(command, cwd=folder, stdout=output, stderr=subprocess.STDOUT)
-        if result.returncode:
-            raise RuntimeError(f"Native build failed at stage {index + 1}; inspect {log}.")
+        run_stage(command, folder, index, len(commands))
     if os.name == "nt":
         from windows_native_runtime import copy_runtime
         copy_runtime(install)

@@ -1,5 +1,6 @@
 """Optional native helper equivalence checks and safe source-extraction tests."""
 import importlib.util
+from contextlib import redirect_stdout
 import io
 import json
 import math
@@ -61,6 +62,28 @@ class NativeSourceTests(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             build.extract_source(self.archive("OCCT/CMakeLists.txt"), self.root)
         self.assertEqual(sentinel.read_text(), "keep")
+
+
+class NativeBuildDiagnosticsTests(unittest.TestCase):
+    def test_failing_stage_prints_compiler_error_and_preserves_full_log(self):
+        with tempfile.TemporaryDirectory(prefix="native build diagnostic ") as folder:
+            output = io.StringIO()
+            code = "import sys; print('\\n'.join('build line '+str(i) for i in range(120))); print('fatal error C1083: synthetic diagnostic',file=sys.stderr); sys.exit(2)"
+            with redirect_stdout(output), self.assertRaisesRegex(RuntimeError, "stage 2 .*exit 2"):
+                build.run_stage([sys.executable, "-u", "-c", code], Path(folder), 1, 6)
+            log = (Path(folder) / "stage-1.log").read_text(encoding="utf-8")
+            self.assertIn("build line 0\n", log)
+            self.assertIn("fatal error C1083", log)
+            self.assertIn("fatal error C1083", output.getvalue())
+            self.assertNotIn("build line 0\n", output.getvalue())
+
+    def test_successful_stage_keeps_full_log_without_failure_message(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output = io.StringIO()
+            with redirect_stdout(output):
+                build.run_stage([sys.executable, "-c", "print('synthetic build succeeded')"], Path(folder), 0, 6)
+            self.assertEqual((Path(folder) / "stage-0.log").read_text(encoding="utf-8").strip(), "synthetic build succeeded")
+            self.assertNotIn("failure", output.getvalue())
 
 
 class NativeHelperTests(unittest.TestCase):

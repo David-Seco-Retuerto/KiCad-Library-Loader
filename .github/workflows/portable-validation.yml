@@ -60,6 +60,23 @@ jobs:
           flags=()
           if [ '${{ inputs.live_download }}' = 'true' ]; then flags+=(--online-smoke); fi
           xvfb-run -a .venv/bin/python tools/build_portable.py --native-sdk "$sdk" "${flags[@]}"
+      - name: Collect build diagnostics
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p build-diagnostics
+          find .native-build build -type f \( -name 'stage-*.log' -o -name 'pyinstaller.log' \) -exec cp --parents {} build-diagnostics/ \; 2>/dev/null || true
+          if [ -d "$HOME/.cache/kicad-library-loader/native" ]; then
+            find "$HOME/.cache/kicad-library-loader/native" -type f -name 'stage-*.log' -exec cp {} build-diagnostics/ \;
+          fi
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: build-diagnostics-${{ matrix.os }}
+          if-no-files-found: warn
+          include-hidden-files: true
+          path: build-diagnostics/
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: portable-${{ matrix.os }}
