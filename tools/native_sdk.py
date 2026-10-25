@@ -49,9 +49,11 @@ def copy_sdk(sdk, bundle):
     notices.mkdir(parents=True)
     for name in ("LICENSE_LGPL_21.txt", "OCCT_LGPL_EXCEPTION.txt", "BUILD_PROVENANCE.json"):
         shutil.copyfile(sdk / name, notices / name)
-    for name in ("MICROSOFT-THIRD-PARTY-NOTICES.txt", "WINDOWS-RUNTIME.json"):
-        if (sdk / name).is_file():
-            shutil.copyfile(sdk / name, notices / name)
+    microsoft_notices = [path for path in sdk.glob("MICROSOFT-THIRD-PARTY-NOTICES.*")
+                         if path.is_file() and path.suffix.lower() in {".txt", ".rtf", ".html", ".htm"}]
+    for path in microsoft_notices + [sdk / "WINDOWS-RUNTIME.json"]:
+        if path.is_file():
+            shutil.copyfile(path, notices / path.name)
     sources = bundle / "dependency-sources"
     shutil.copyfile(archive, sources / archive.name)
     return provenance

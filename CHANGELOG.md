@@ -2,6 +2,8 @@
 
 ## 0.1.0-alpha.1 — Unreleased
 
+Windows runtime notice discovery supports the selected Visual Studio edition instead of assuming Build Tools. Notice bytes, format, installed path and hash are retained for packaging.
+
 Windows CI compiles OCCT under a shorter runner-temporary path to avoid MSVC relative-include path limits. The Windows wrapper accepts `-BuildRoot`; diagnostic collection covers that external build folder.
 
 STEP preview now polls its child process on the Tk thread and cleans it up on close/timeout, avoiding Tcl interpreter collection from a background preview thread. Native build failures print compiler diagnostics and the validation workflow preserves build logs even after a failed job.

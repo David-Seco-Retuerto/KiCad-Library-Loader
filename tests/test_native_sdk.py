@@ -52,6 +52,16 @@ class NativeSdkTests(unittest.TestCase):
         self.assertEqual((self.bundle / "dependency-sources/occt.tar.gz").read_bytes(), b"synthetic upstream source archive")
         self.assertTrue((self.bundle / "licenses/native-step/OCCT_LGPL_EXCEPTION.txt").is_file())
 
+    def test_original_microsoft_notice_format_and_provenance_are_packaged(self):
+        data = b"{\\rtf1 Synthetic original notice}"
+        (self.sdk / "MICROSOFT-THIRD-PARTY-NOTICES.rtf").write_bytes(data)
+        (self.sdk / "WINDOWS-RUNTIME.json").write_text('{"synthetic":true}')
+        sdk_module.copy_sdk(self.sdk, self.bundle)
+        notices = self.bundle / "licenses/native-step"
+        self.assertEqual((notices / "MICROSOFT-THIRD-PARTY-NOTICES.rtf").read_bytes(), data)
+        self.assertTrue((notices / "WINDOWS-RUNTIME.json").is_file())
+        self.assertFalse((notices / "MICROSOFT-THIRD-PARTY-NOTICES.txt").exists())
+
     def test_wrong_source_hash_is_rejected_before_runtime_copy(self):
         (self.sdk / "occt.tar.gz").write_bytes(b"changed source")
         with self.assertRaisesRegex(ValueError, "hash mismatch"):

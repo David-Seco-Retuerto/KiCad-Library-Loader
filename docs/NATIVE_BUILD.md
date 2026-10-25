@@ -43,3 +43,7 @@ powershell -File tools/build_native_step.ps1 -Jobs 2 -BuildRoot C:\kll-build
 ```
 
 The root holds generated compiler outputs; it does not change the application workspace or library output. The resulting SDK is under `<build-root>/windows-x86_64/<run>/sdk`. Supply that SDK path to `tools/build_portable.py --native-sdk` when packaging manually.
+
+## Visual Studio runtime notices
+
+The runtime collector discovers the installed third-party notice inside the selected Visual Studio installation, including Build Tools and Enterprise layouts. It prefers the matching edition and English (1033) when available, preserves the original file bytes and extension, and records its relative installed path and SHA-256 in `WINDOWS-RUNTIME.json`. It does not download a substitute notice or continue without one. Only the x64 release CRT from `VC/Redist/MSVC/<version>/x64/Microsoft.VC143.CRT` is copied; debug and nonredistributable directories remain excluded.
