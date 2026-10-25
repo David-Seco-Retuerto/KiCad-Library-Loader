@@ -22,7 +22,7 @@ class DownloadTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.workspace = Path(self.temp.name)
+        self.workspace = Path(self.temp.name).resolve()
         self.tool = self.workspace / "external venv/Scripts/easyeda2kicad.exe"
         self.tool.parent.mkdir(parents=True)
         self.tool.write_bytes(b"synthetic executable; never run")
@@ -213,7 +213,7 @@ class DownloadGuiTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.workspace = Path(self.temp.name)
+        self.workspace = Path(self.temp.name).resolve()
         self.tool = self.workspace / "external/easyeda2kicad.exe"
         self.tool.parent.mkdir()
         self.tool.write_bytes(b"fake")

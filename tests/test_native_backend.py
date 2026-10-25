@@ -21,7 +21,7 @@ class NativeBackendTests(unittest.TestCase):
 
     def test_reader_is_resolved_only_inside_the_frozen_runtime(self):
         with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
+            root = Path(folder).resolve()
             reader = root / "step-reader/bin" / ("kicad-step-mesher.exe" if native_step.os.name == "nt" else "kicad-step-mesher")
             reader.parent.mkdir(parents=True)
             reader.write_bytes(b"synthetic")
@@ -63,7 +63,7 @@ class RuntimeNoticeTests(unittest.TestCase):
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         with tempfile.TemporaryDirectory() as folder:
-            path = Path(folder) / "Analysis.toc"
+            path = Path(folder).resolve() / "Analysis.toc"
             path.write_text(repr([[("libexample.so", "/usr/lib/example.so", "BINARY"), ("a.py", "/source/a.py", "PYMODULE")], [("libexample.so", "/usr/lib/example.so", "BINARY")]]))
             self.assertEqual(module.binary_entries([path]), [("libexample.so", "/usr/lib/example.so")])
             path.write_text("__import__('os').system('do-not-execute')")

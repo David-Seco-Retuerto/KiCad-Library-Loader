@@ -18,7 +18,7 @@ class NativeSdkTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
         (self.root / "native").mkdir()
         self.sdk = self.root / "sdk"
         (self.sdk / "bin").mkdir(parents=True)

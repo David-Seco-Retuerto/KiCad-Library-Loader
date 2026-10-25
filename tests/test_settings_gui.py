@@ -17,7 +17,7 @@ class FolderSettingsGuiTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.base = Path(self.temp.name)
+        self.base = Path(self.temp.name).resolve()
         self.workspace = self.base / "application"
         self.workspace.mkdir()
         self.source = self.base / "external-exports"

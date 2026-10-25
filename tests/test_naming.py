@@ -12,7 +12,7 @@ from library_core import dump, parse, suggestion
 class NamingTests(unittest.TestCase):
     def name(self, mpn, geometry, description):
         with tempfile.TemporaryDirectory() as folder:
-            path = Path(folder) / 'synthetic.kicad_mod'
+            path = Path(folder).resolve() / 'synthetic.kicad_mod'
             tree = parse('(footprint "TEST" (descr "TEST"))')
             tree[1], tree[2][1] = geometry, description
             path.write_text(dump(tree), encoding='utf-8')

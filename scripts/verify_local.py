@@ -52,7 +52,7 @@ def main():
     imported = 0
     formats = list(SYMBOL_FORMATS) if args.format == "both" else [args.format]
     with tempfile.TemporaryDirectory(prefix="dvl-integration-") as directory:
-        target = Path(directory) / "separate-output-library"
+        target = Path(directory).resolve() / "separate-output-library"
         settings = LoaderSettings(roots, target, "absolute", categories=(category,)).validated(args.repo)
         for output_format in formats:
             commit_plan(target, build_folder_plan(args.repo, settings, output_format))

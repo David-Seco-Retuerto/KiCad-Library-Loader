@@ -14,7 +14,7 @@ from test_importer import SYMBOL, FOOTPRINT, STEP
 class GuiTests(unittest.TestCase):
     def test_selection_refresh_preferences_validation_and_import(self):
         with tempfile.TemporaryDirectory() as directory:
-            repo = Path(directory)
+            repo = Path(directory).resolve()
             source = repo / "Imports/SamacSys"
             source.mkdir(parents=True)
             (repo / "Imports/LCSC").mkdir()

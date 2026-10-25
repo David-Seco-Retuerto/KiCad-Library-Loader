@@ -30,6 +30,13 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           .venv\Scripts\python.exe -m pip install -r requirements-build.txt
           exit $LASTEXITCODE
+      - name: Windows regression preflight
+        if: runner.os == 'Windows'
+        timeout-minutes: 10
+        shell: powershell
+        run: |
+          .venv\Scripts\python.exe -u tools/run_regressions.py
+          exit $LASTEXITCODE
       - name: Build Windows STEP SDK
         if: runner.os == 'Windows'
         shell: powershell
@@ -79,7 +86,7 @@ jobs:
               if not root.is_dir():
                   continue
               for source in root.rglob("*.log"):
-                  if not (source.name.startswith("stage-") or source.name == "pyinstaller.log"):
+                  if not (source.name.startswith("stage-") or source.name in {"pyinstaller.log", "regression.log"}):
                       continue
                   target = Path("build-diagnostics") / label / source.relative_to(root)
                   target.parent.mkdir(parents=True, exist_ok=True)

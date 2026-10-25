@@ -38,7 +38,7 @@ class ArrivalTests(unittest.TestCase):
 
     def test_validated_arrival_retains_original_and_only_native_cache_assets(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             archive = root / "LIB_TEST.zip"
             create_zip(archive)
             original = archive.read_bytes()
@@ -50,7 +50,7 @@ class ArrivalTests(unittest.TestCase):
 
     def test_partial_stale_and_cancelled_arrivals_do_not_extract(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             archive = root / "LIB_TEST.zip"
             create_zip(archive)
             signature = fingerprint(archive)
@@ -70,7 +70,7 @@ class ArrivalTests(unittest.TestCase):
     def test_changed_during_extraction_is_cleaned_without_touching_zip(self):
         import download_watch
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             archive = root / "LIB_TEST.zip"
             create_zip(archive)
             real_extract = download_watch.extract_native_zip

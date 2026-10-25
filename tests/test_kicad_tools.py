@@ -14,7 +14,7 @@ import verify_local
 class KiCadToolTests(unittest.TestCase):
     def test_numeric_versions_and_per_user_installation_are_considered(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             system = root / "ProgramFiles"
             local = root / "LocalAppData"
             for path in (system / "KiCad/9.0/bin/kicad-cli.exe", local / "Programs/KiCad/10.0/bin/kicad-cli.exe"):
@@ -49,7 +49,7 @@ class KiCadToolTests(unittest.TestCase):
 
     def test_explicit_cli_is_used_for_version_check(self):
         with tempfile.TemporaryDirectory() as directory:
-            cli = Path(directory) / "explicit-cli.exe"
+            cli = Path(directory).resolve() / "explicit-cli.exe"
             with patch.object(sys, "argv", ["verify_local.py", "--repo", directory, "--kicad-cli", str(cli), "--require-kicad-major", "10"]), patch("verify_local.find_cli") as discover, patch("verify_local.cli_version", return_value=("9.0.7", 9)) as version:
                 with self.assertRaises(SystemExit):
                     verify_local.main()
@@ -59,7 +59,7 @@ class KiCadToolTests(unittest.TestCase):
     def test_verifier_creates_export_directories_and_exercises_native_symdir_branch(self):
         from test_importer import SYMBOL, FOOTPRINT
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             source = root / "Imports/SamacSys"
             source.mkdir(parents=True)
             (source / "part.kicad_sym").write_text(SYMBOL, encoding="utf-8")

@@ -32,3 +32,9 @@ Use a disposable library/output folder and a new test KiCad project. Never use a
 Windows and Ubuntu 24.04 WSLg are the available development/test systems. Tests with a reduced environment on the same machine are relocation/dependency checks, not independent clean-machine tests. No separate clean Windows or Linux desktop system has been validated. Treat that result as pending; never infer it from automated smoke tests.
 
 Portable publication also requires closing the native dependency review in [NATIVE_DEPENDENCIES.md](NATIVE_DEPENDENCIES.md). A source-only alpha does not ship those DLL/shared-library bundles.
+
+## Unattended regression failures
+
+Portable packaging runs `tools/run_regressions.py` with fail-fast discovery, a 600-second subprocess limit and stack dumps every 120 seconds. `build/<platform>/<run>/regression.log` retains the complete output and is included in CI build diagnostics. Windows also runs a ten-minute regression preflight before the expensive native build; the packaging pass after SDK compilation additionally enables the native-helper cases. Normal full local discovery remains `python -m unittest discover -s tests -v`.
+
+Temporary workspaces are resolved before comparing paths so Windows 8.3 aliases such as `RUNNER~1` do not differ from their canonical spelling. Update staging must also resolve its temporary root before translating generated assets to their final output paths.

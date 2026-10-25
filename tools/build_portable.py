@@ -125,6 +125,28 @@ def make_archive(bundle, destination):
             archive.add(bundle, arcname=bundle.name)
 
 
+def run_regression_tests(work, environment, timeout=600):
+    log = Path(work) / "regression.log"
+    print(f"Running fail-fast regressions (timeout: {timeout}s). Full log: {log}", flush=True)
+    failure = None
+    with log.open("w", encoding="utf-8") as stream:
+        try:
+            result = subprocess.run([sys.executable, "-u", str(ROOT / "tools/run_regressions.py")],
+                                    cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT,
+                                    env=environment, timeout=timeout)
+            if result.returncode:
+                failure = f"Regression tests failed (exit {result.returncode})."
+        except subprocess.TimeoutExpired:
+            failure = f"Regression tests timed out after {timeout}s. Inspect the last test and stack dumps."
+    with log.open("rb") as stream:
+        stream.seek(0, os.SEEK_END)
+        stream.seek(max(0, stream.tell() - 32000))
+        tail = stream.read().decode("utf-8", errors="replace")
+    print(tail, flush=True)
+    if failure:
+        raise RuntimeError(f"{failure} Full log: {log}")
+
+
 def build():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--skip-tests", action="store_true", help="Development only; report records that regression tests were not run")
@@ -145,7 +167,7 @@ def build():
         test_environment = os.environ.copy()
         if args.native_sdk:
             test_environment["KICAD_LOADER_TEST_STEP_HELPER"] = str(args.native_sdk / "bin" / ("kicad-step-mesher.exe" if os.name == "nt" else "kicad-step-mesher"))
-        subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"], cwd=ROOT, check=True, env=test_environment)
+        run_regression_tests(work, test_environment)
     log = work / "pyinstaller.log"
     with log.open("w", encoding="utf-8") as stream:
         subprocess.run([sys.executable, "-m", "PyInstaller", "--distpath", str(result), "--workpath", str(work / "pyinstaller"),
@@ -188,7 +210,7 @@ def build():
         from lcsc_download import download_lcsc
         from library_core import scan_directory, associate, build_plan, commit_plan
         with tempfile.TemporaryDirectory(prefix="loader-frozen-acquisition-") as temporary:
-            workspace = Path(temporary)
+            workspace = Path(temporary).resolve()
             acquired = download_lcsc(workspace, str(worker), "C2040")
             inventory = scan_directory(acquired.folder)
             key = next(iter(inventory.symbols))

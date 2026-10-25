@@ -80,7 +80,7 @@ def build_update_plan(workspace, inv, symbol_key, fp_key, model_key, category, m
         raise ImportErrorDetail("Older packed history lacks a per-symbol fingerprint and the library has changed. This component cannot be verified for automatic update.")
     preserved_name = old["footprint"][0].stem if fp_key else ""
     with tempfile.TemporaryDirectory(prefix="kicad-update-plan-") as directory:
-        stage = Path(directory)
+        stage = Path(directory).resolve()
         candidate = build_plan(workspace, inv, symbol_key, fp_key, model_key, category, "Custom", preserved_name,
                                symbol_format=symbol_format, output_root=stage, input_roots=input_roots,
                                model_path_mode=model_path_mode, model_variable=model_variable, category_config=layout)

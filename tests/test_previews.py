@@ -62,7 +62,7 @@ class PinPreviewTests(unittest.TestCase):
 
     def test_step_button_uses_internal_viewer_without_file_association(self):
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "test.stp"
+            path = Path(directory).resolve() / "test.stp"
             path.write_text("test")
             app = object.__new__(App)
             app.root = self.root
@@ -142,7 +142,7 @@ class StepPreviewTests(unittest.TestCase):
         from OCP.STEPControl import STEPControl_Writer, STEPControl_AsIs
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.path = Path(self.temp.name) / "synthetic_box.step"
+        self.path = Path(self.temp.name).resolve() / "synthetic_box.step"
         writer = STEPControl_Writer()
         writer.Transfer(BRepPrimAPI_MakeBox(2, 4, 6).Shape(), STEPControl_AsIs)
         writer.Write(str(self.path))

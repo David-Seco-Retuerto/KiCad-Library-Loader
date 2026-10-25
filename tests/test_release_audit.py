@@ -17,7 +17,7 @@ class ReleaseAuditTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.folder = Path(self.temporary.name)
+        self.folder = Path(self.temporary.name).resolve()
 
     def zip(self, files):
         path = self.folder / "release.zip"

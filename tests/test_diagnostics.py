@@ -30,7 +30,7 @@ class DiagnosticTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.base = Path(self.temp.name)
+        self.base = Path(self.temp.name).resolve()
         self.workspace = self.base / "library"
         self.workspace.mkdir()
         self.config = self.base / "config/10.0"

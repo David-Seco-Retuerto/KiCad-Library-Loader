@@ -22,7 +22,7 @@ class PortableTests(unittest.TestCase):
 
     def test_frozen_helpers_are_relative_to_executable_not_current_directory(self):
         with tempfile.TemporaryDirectory() as directory:
-            folder = Path(directory)
+            folder = Path(directory).resolve()
             suffix = '.exe' if sys.platform == 'win32' else ''
             helper = folder / ('kicad-loader-worker' + suffix)
             helper.write_text('synthetic executable')
@@ -61,7 +61,7 @@ class PortableTests(unittest.TestCase):
         spec.loader.exec_module(build)
         import tarfile
         with tempfile.TemporaryDirectory() as directory:
-            first, second = Path(directory) / 'one.tar.gz', Path(directory) / 'two.tar.gz'
+            first, second = Path(directory).resolve() / 'one.tar.gz', Path(directory).resolve() / 'two.tar.gz'
             build.source_archive(first)
             build.source_archive(second)
             self.assertEqual(first.read_bytes(), second.read_bytes())

@@ -18,7 +18,7 @@ from test_importer import SYMBOL, FOOTPRINT, STEP
 class DownloadListTests(unittest.TestCase):
     def test_shallow_zip_list_is_sorted_and_ignores_incomplete_files(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             for name in ("old.zip", "recent.ZIP", "partial.zip.crdownload", "note.txt"):
                 (root / name).write_bytes(b"fixture")
             (root / "nested").mkdir()
@@ -32,7 +32,7 @@ class InputChoiceGuiTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.base = Path(self.temp.name)
+        self.base = Path(self.temp.name).resolve()
         self.workspace = self.base / "application"
         self.workspace.mkdir()
         self.downloads = self.base / "downloads"

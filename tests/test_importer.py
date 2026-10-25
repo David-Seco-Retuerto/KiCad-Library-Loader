@@ -32,7 +32,7 @@ class ImportTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.repo = Path(self.temp.name)
+        self.repo = Path(self.temp.name).resolve()
         self.source = self.repo / "Imports" / "SamacSys"
         self.source.mkdir(parents=True)
         (self.repo / "Imports" / "LCSC").mkdir()

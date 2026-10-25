@@ -23,7 +23,7 @@ class NativeSourceTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
 
     def archive(self, name, link=False):
         archive = self.root / "source.tar.gz"
@@ -70,8 +70,8 @@ class NativeBuildDiagnosticsTests(unittest.TestCase):
             output = io.StringIO()
             code = "import sys; print('\\n'.join('build line '+str(i) for i in range(120))); print('fatal error C1083: synthetic diagnostic',file=sys.stderr); sys.exit(2)"
             with redirect_stdout(output), self.assertRaisesRegex(RuntimeError, "stage 2 .*exit 2"):
-                build.run_stage([sys.executable, "-u", "-c", code], Path(folder), 1, 6)
-            log = (Path(folder) / "stage-1.log").read_text(encoding="utf-8")
+                build.run_stage([sys.executable, "-u", "-c", code], Path(folder).resolve(), 1, 6)
+            log = (Path(folder).resolve() / "stage-1.log").read_text(encoding="utf-8")
             self.assertIn("build line 0\n", log)
             self.assertIn("fatal error C1083", log)
             self.assertIn("fatal error C1083", output.getvalue())
@@ -81,8 +81,8 @@ class NativeBuildDiagnosticsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             output = io.StringIO()
             with redirect_stdout(output):
-                build.run_stage([sys.executable, "-c", "print('synthetic build succeeded')"], Path(folder), 0, 6)
-            self.assertEqual((Path(folder) / "stage-0.log").read_text(encoding="utf-8").strip(), "synthetic build succeeded")
+                build.run_stage([sys.executable, "-c", "print('synthetic build succeeded')"], Path(folder).resolve(), 0, 6)
+            self.assertEqual((Path(folder).resolve() / "stage-0.log").read_text(encoding="utf-8").strip(), "synthetic build succeeded")
             self.assertNotIn("failure", output.getvalue())
 
 
@@ -99,7 +99,7 @@ class NativeHelperTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="native STEP test ")
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
 
     def run_helper(self, *args, success=True):
         result = subprocess.run([str(self.helper), *map(str, args)], cwd=self.root, capture_output=True, text=True, timeout=60)

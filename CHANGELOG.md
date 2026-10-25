@@ -2,6 +2,8 @@
 
 ## 0.1.0-alpha.1 — Unreleased
 
+Update staging and temporary test workspaces resolve Windows short-path aliases consistently. Portable regressions fail fast, retain a full log and periodic stack dumps, and have a ten-minute timeout. Windows CI runs a regression preflight before compiling OCCT.
+
 Windows runtime notice discovery supports the selected Visual Studio edition instead of assuming Build Tools. Notice bytes, format, installed path and hash are retained for packaging.
 
 Windows CI compiles OCCT under a shorter runner-temporary path to avoid MSVC relative-include path limits. The Windows wrapper accepts `-BuildRoot`; diagnostic collection covers that external build folder.

@@ -20,7 +20,7 @@ class UpdateTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.workspace = Path(self.temp.name)
+        self.workspace = Path(self.temp.name).resolve()
         self.source = self.workspace / "Imports/SamacSys"
         self.source.mkdir(parents=True)
         self.symbol_file = self.source / "parts.kicad_sym"

@@ -14,7 +14,7 @@ def gui_smoke():
     symbol = '(kicad_symbol_lib (version 20220914) (generator test) (symbol "PORTABLE_TEST" (in_bom yes) (on_board yes) (property "Reference" "U") (property "Value" "PORTABLE_TEST") (property "Footprint" "Test:BOX") (symbol "PORTABLE_TEST_0_1" (rectangle (start -2 -2) (end 2 2) (stroke (width 0) (type default)) (fill (type background))))))'
     footprint = '(footprint "BOX" (version 20221018) (layer "F.Cu") (fp_rect (start -2 -2) (end 2 2) (stroke (width 0.1) (type default)) (layer "F.SilkS")) (model "PORTABLE_TEST.step" (offset (xyz 0 0 0)) (scale (xyz 1 1 1)) (rotate (xyz 0 0 0))))'
     with tempfile.TemporaryDirectory(prefix="loader-portable-smoke-") as folder:
-        workspace = Path(folder)
+        workspace = Path(folder).resolve()
         source = workspace / "Imports/SamacSys"
         source.mkdir(parents=True)
         (source / "test.kicad_sym").write_text(symbol, encoding="utf-8")

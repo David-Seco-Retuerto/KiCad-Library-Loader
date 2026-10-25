@@ -31,7 +31,7 @@ class ArchiveTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.workspace = Path(self.temp.name)
+        self.workspace = Path(self.temp.name).resolve()
         self.archive = self.workspace / "download.zip"
         create_zip(self.archive)
 
@@ -116,7 +116,7 @@ class ArchiveGuiTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.workspace = Path(self.temp.name)
+        self.workspace = Path(self.temp.name).resolve()
         self.archive = self.workspace / "download.zip"
         create_zip(self.archive)
         try:
