@@ -8,25 +8,30 @@ This is the standalone application. Your KiCad libraries and provider downloads 
 
 You do not need to clone this repository or install Python to use a portable build.
 
-**[Open the Releases page](https://github.com/David-Seco-Retuerto/KiCad-Library-Loader/releases)**
+**[v0.1.0-alpha.1 - first public alpha](https://github.com/David-Seco-Retuerto/KiCad-Library-Loader/releases/tag/v0.1.0-alpha.1)**
 
-The first Windows and Linux portable release is being prepared. Until the archives are published, use the source installation instructions below. Publishing the repository does not publish the portable packages automatically.
+Download only the portable for your operating system:
 
-When available, choose the **Windows x86_64 ZIP** or **Linux x86_64 tar.gz** under the release's **Assets**, extract the complete archive and follow the portable instructions below. GitHub's automatic **Source code** archives are for developers and do not contain the portable executables.
+| Platform | Download | Run after extracting the complete archive |
+| --- | --- | --- |
+| Windows x86_64 | [Windows portable ZIP](https://github.com/David-Seco-Retuerto/KiCad-Library-Loader/releases/download/v0.1.0-alpha.1/KiCad-Library-Loader-0.1.0-alpha.1-windows-x86_64.zip) | `KiCad-Library-Loader.exe` |
+| Linux x86_64 (tested on Ubuntu 24.04) | [Linux portable tar.gz](https://github.com/David-Seco-Retuerto/KiCad-Library-Loader/releases/download/v0.1.0-alpha.1/KiCad-Library-Loader-0.1.0-alpha.1-linux-x86_64.tar.gz) | `./KiCad-Library-Loader` |
 
-## Source alpha preparation
+Keep the worker executable and `_internal` folder next to the application. KiCad itself is installed separately. This is an alpha: try it with a temporary library/project and check imported components in KiCad before using them in a design.
 
-The source-only alpha can be prepared with `python tools/source_release.py`. This creates a whitelisted source archive, content report and SHA-256 checksum under `dist/source-release/`; it does not publish or run Git. Installation instructions are below. See [draft release notes](docs/RELEASE_NOTES_0.1.0-alpha.1.md) and [manual acceptance checks](docs/ALPHA_TESTING.md).
+[SHA-256 checksums](https://github.com/David-Seco-Retuerto/KiCad-Library-Loader/releases/download/v0.1.0-alpha.1/SHA256SUMS) and [complete matching application/dependency sources](https://github.com/David-Seco-Retuerto/KiCad-Library-Loader/releases/download/v0.1.0-alpha.1/KiCad-Library-Loader-0.1.0-alpha.1-source-complete.tar.gz) are separate downloads. The source archive is optional for running the app. GitHub's automatic **Source code** archives do not contain portable executables or the complete dependency sources.
 
-## Portable alpha candidates (Windows and Linux)
+See [all releases](https://github.com/David-Seco-Retuerto/KiCad-Library-Loader/releases), [release notes](docs/RELEASE_NOTES_0.1.0-alpha.1.md) and [manual acceptance checks](docs/ALPHA_TESTING.md).
 
-Version **0.1.0-alpha.1** is being prepared for both platforms. Local candidate builds are not yet published/audited releases; see [the release checklist](docs/RELEASING.md).
+## Portable builds (Windows and Linux)
+
+Version **0.1.0-alpha.1** is published as a pre-release for both platforms. The original candidates passed build and launch checks on separate GitHub-hosted Windows and Ubuntu runners. The compact public packages preserve the runtime files and passed additional local worker, GUI, import and STEP checks on Windows and Ubuntu WSLg.
 
 - **Windows x86_64:** extract the complete ZIP into a writable folder and run `KiCad-Library-Loader.exe`.
 - **Linux x86_64:** extract the complete tar.gz and run `./KiCad-Library-Loader`. The current build was tested on Ubuntu 24.04 under WSLg (glibc 2.39); glibc, libgcc and libstdc++ are system prerequisites. Older glibc, musl/Alpine, ARM and other desktop setups are not established compatible.
 - Keep `_internal` and `kicad-loader-worker` next to the main executable. The minimal SDK package includes its Python runtime, Tk, native STEP reader and converter; users do not install a venv or a C++ compiler. KiCad itself is not included.
 - Normal portable launches store preferences, cache and default library output under `data` next to the executable. Configure library/input locations in Settings before importing. `--workspace PATH` selects an existing alternative folder. Moving the portable does not rewrite saved absolute source/output paths.
-- No personal preferences, download caches, history/backups or provider CAD assets are shipped. Source and notices accompany each minimal SDK candidate; public assembly separates the complete matching sources (including full OCCT source and exact converter/build-tool sdists) from the user-facing portable. Follow the release checklist before publication. Legacy OCP bundles remain development-only.
+- No personal preferences, download caches, history/backups or provider CAD assets are shipped. Runtime notices remain in each portable; complete matching sources (including full OCCT source and exact converter/build-tool sdists) are offered in the separate source archive on the same release page. Legacy OCP bundles remain development-only.
 
 ## Public release layout
 
