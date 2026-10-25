@@ -2,6 +2,8 @@
 
 ## 0.1.0-alpha.1 — Unreleased
 
+Public release assembly separates complete matching sources/developer documentation from the two portable downloads, retains all runtime bytes and notices, shortens runtime licence paths and produces a combined checksum file.
+
 Native builds report elapsed time, observed log inactivity and the last compiler line every 15 seconds, with full stage logs and completion durations retained.
 
 The review pane reserves three readable text lines using actual font metrics at minimum window size, including after font changes and divider movement.

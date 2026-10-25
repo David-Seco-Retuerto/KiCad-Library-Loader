@@ -32,3 +32,15 @@ Builds retain `RELEASE_STATUS.txt` and `release_ready=false` while independent-r
 ## Source-only utility
 
 `python tools/source_release.py` can prepare a separate source archive/content report/checksum without distributing native runtime libraries. This utility does not change the agreed first-publication plan for both portables.
+
+## Assemble the public release
+
+After both native candidates and separate-runner launch checks pass, download the CI artifacts and select the inner Windows ZIP and Linux tar.gz. These candidates retain embedded source delivery for verification; the public assembly separates it. Do not upload the outer Actions containers or their timestamp directories.
+
+```powershell
+.venv\Scripts\python.exe tools/prepare_release.py --windows C:\path\KiCad-Library-Loader-0.1.0-alpha.1-windows-x86_64.zip --linux C:\path\KiCad-Library-Loader-0.1.0-alpha.1-linux-x86_64.tar.gz --output dist/release-clean/new-delivery
+```
+
+The destination must be new. The tool verifies matching application/dependency sources and their upstream hashes, preserves every runtime file byte and Linux executable mode/symlink, shortens nested runtime notice paths with a mapping index, and writes four files under `assets/`. Source access directions in each portable link to the complete source asset on the versioned release page. The complete source archive includes the original application tree, upstream sources, original provenance and the packaging-only assembly recipe/tests.
+
+Run source/content checks and frozen smoke tests against the assembled archives before publication. Record evidence beside `assets/`, including hashes of the input candidates and proof of unchanged runtime contents. Upload only the four assets: both portables, complete sources and SHA256SUMS. Release notes belong in the release description; CI logs and verification reports remain maintainer evidence. The owner chooses the validated application commit/tag and publishes manually. No Git or GitHub write is performed by the assembly tool.

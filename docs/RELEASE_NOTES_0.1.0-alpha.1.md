@@ -1,27 +1,33 @@
-# KiCad Library Loader 0.1.0-alpha.1
+# KiCad Library Loader v0.1.0-alpha.1
 
-Draft release notes. The owner decides when to publish and creates the release manually.
+First public alpha: import symbols, footprints and STEP models into KiCad libraries with independent selection, previews and a reviewed import plan.
 
-Import native KiCad symbols, footprints and STEP models with independent asset selection, readable naming, previews and a reviewed import plan. Supports packed KiCad 9 libraries and genuine unpacked KiCad 10+ symbol directories.
+## Download and run
 
-## Included
+Download only the portable for your operating system:
 
-- Native SamacSys/LCSC folders, ZIP intake and Downloads refresh.
+- **Windows x86_64:** extract the complete ZIP and run `KiCad-Library-Loader.exe`.
+- **Linux x86_64:** extract the complete tar.gz and run `./KiCad-Library-Loader`. Tested on Ubuntu 24.04; other distributions are not yet validated. Compatible glibc and C++ system runtimes are required.
+
+Keep the worker and `_internal` folder together with the application. No separate Python installation is needed. KiCad is installed separately.
+
+`KiCad-Library-Loader-0.1.0-alpha.1-source-complete.tar.gz` is an optional separate download for users. It contains the exact matching application/dependency sources, build recipes, developer documentation and original provenance. `SHA256SUMS` covers all three archives. GitHub's automatic Source code downloads are not portable executables and do not replace this complete source asset.
+
+## Features
+
+- SamacSys/LCSC export folders, ZIP intake and Downloads refresh.
 - Browser search and explicit LCSC acquisition through easyeda2kicad.
-- Configurable output locations, categories and model path variables.
-- Symbol/footprint previews and an integrated STEP viewer.
-- Collision protection, history and reviewed update/restore/move/remove/recover workflows.
-- English UI and documentation. AGPL-3.0-only, copyright (C) 2026 David-Seco-Retuerto.
+- Independent asset selection, naming, configurable categories and destinations.
+- Packed KiCad 9 and genuine unpacked KiCad 10+ symbol libraries.
+- Symbol/footprint previews, integrated STEP preview and managed import history.
+- Reviewed update, restore, move, removal and recovery workflows.
 
-## Source installation
+## Validation and limits
 
-Follow README.md to create a Python environment, install requirements and run the application. Python with Tcl/Tk and internet access for dependency installation are required. KiCad is installed separately. Source and dependency licences are included/referenced in the project notices.
+The original Windows and Ubuntu candidates passed build and application launch checks on separate GitHub-hosted runners. Public packaging preserves every runtime file byte and Linux executable mode/symlink. The reorganized packages passed local worker, GUI, packed/unpacked import and STEP checks on Windows and Ubuntu WSLg with a reduced PATH.
 
-## Known limits
+This is an alpha: evaluate it with a temporary library/project and check pin mapping, footprint dimensions and 3D alignment in KiCad. Automated tests and approximate previews do not establish electrical correctness. SamacSys downloading remains manual; LCSC acquisition uses an unofficial converter and provider interfaces may change. Other Linux distributions, ARM and macOS are not validated. Managed library changes do not automatically update placed schematic/PCB instances.
 
-- This is an alpha. Use a disposable output/project for evaluation and review every plan.
-- Available native test systems are Windows x86_64 and Ubuntu 24.04 x86_64 under WSLg. No independent clean machine has been tested. Other Linux distributions, older glibc, ARM and macOS are not validated targets.
-- SamacSys browser search/download remains manual. LCSC acquisition uses an unofficial converter and provider endpoints may change; verify the selected package and CAD data against the datasheet.
-- Approximate 2D previews are not full CAD validation. Installed KiCad enables exact SVG previews.
-- Managed library changes do not automatically update placed schematic/PCB instances. Multi-file writes roll back handled I/O errors but are not power-loss atomic.
-- Minimal portables include a locally built STEP helper with complete pinned OCCT source and runtime notices. Independent-runner and owner acceptance checks remain before public binary release; follow docs/RELEASING.md. The legacy OCP-wheel bundles are development-only.
+## Licence
+
+Copyright (C) 2026 David-Seco-Retuerto. Application code: AGPL-3.0-only. Third-party components retain their own licences. Runtime notices remain in each portable; complete matching application/dependency sources are available in the separate complete source asset at this same release.

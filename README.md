@@ -4,6 +4,16 @@ A Python/Tkinter application for importing native KiCad symbols, footprints and 
 
 This is the standalone application. Your KiCad libraries and provider downloads can live in separate folders; no library repository or vendor assets are bundled. The source remains in `scripts/`, with tests in `tests/`. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the code map and remaining work.
 
+## Downloads
+
+You do not need to clone this repository or install Python to use a portable build.
+
+**[Open the Releases page](https://github.com/David-Seco-Retuerto/KiCad-Library-Loader/releases)**
+
+The first Windows and Linux portable release is being prepared. Until the archives are published, use the source installation instructions below. Publishing the repository does not publish the portable packages automatically.
+
+When available, choose the **Windows x86_64 ZIP** or **Linux x86_64 tar.gz** under the release's **Assets**, extract the complete archive and follow the portable instructions below. GitHub's automatic **Source code** archives are for developers and do not contain the portable executables.
+
 ## Source alpha preparation
 
 The source-only alpha can be prepared with `python tools/source_release.py`. This creates a whitelisted source archive, content report and SHA-256 checksum under `dist/source-release/`; it does not publish or run Git. Installation instructions are below. See [draft release notes](docs/RELEASE_NOTES_0.1.0-alpha.1.md) and [manual acceptance checks](docs/ALPHA_TESTING.md).
@@ -16,7 +26,13 @@ Version **0.1.0-alpha.1** is being prepared for both platforms. Local candidate 
 - **Linux x86_64:** extract the complete tar.gz and run `./KiCad-Library-Loader`. The current build was tested on Ubuntu 24.04 under WSLg (glibc 2.39); glibc, libgcc and libstdc++ are system prerequisites. Older glibc, musl/Alpine, ARM and other desktop setups are not established compatible.
 - Keep `_internal` and `kicad-loader-worker` next to the main executable. The minimal SDK package includes its Python runtime, Tk, native STEP reader and converter; users do not install a venv or a C++ compiler. KiCad itself is not included.
 - Normal portable launches store preferences, cache and default library output under `data` next to the executable. Configure library/input locations in Settings before importing. `--workspace PATH` selects an existing alternative folder. Moving the portable does not rewrite saved absolute source/output paths.
-- No personal preferences, download caches, history/backups or provider CAD assets are shipped. Source and notices accompany each minimal SDK candidate, including full OCCT source and exact converter/build-tool sdists. Independent-runner and owner acceptance checks remain before publication. Legacy OCP bundles remain development-only.
+- No personal preferences, download caches, history/backups or provider CAD assets are shipped. Source and notices accompany each minimal SDK candidate; public assembly separates the complete matching sources (including full OCCT source and exact converter/build-tool sdists) from the user-facing portable. Follow the release checklist before publication. Legacy OCP bundles remain development-only.
+
+## Public release layout
+
+Users download only the portable archive for their operating system. The public release contains four files: Windows ZIP, Linux tar.gz, a separate `source-complete.tar.gz`, and `SHA256SUMS`. Each portable contains the unchanged executables/runtime, a short README, source access directions, licences and component metadata. Complete application/dependency sources and developer documentation are offered separately at the same release page.
+
+The maintainer assembles this layout from the two verified native candidates with `tools/prepare_release.py`; no native recompilation is needed. Runtime hashes and Linux executable modes/symlink targets must match the original candidates. Only the `assets/` output is uploaded; CI containers, build logs and assembly reports stay outside the public downloads. See [the release assembly instructions](docs/RELEASING.md#assemble-the-public-release).
 
 ## Licence and authorship
 
